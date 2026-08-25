@@ -15,7 +15,8 @@ a new, valid `.ytd` you can put straight into a FiveM resource.
 
 </div>
 
-![The editor with a texture open, a brush stroke and floating text](assets/screenshot.png)
+![Uploading image.png…]()
+
 
 ```
 Open .ytd  ->  select texture  ->  draw / add text / place an image  ->  Save As YTD
