@@ -443,7 +443,8 @@ Interactive or the FiveM / Cfx.re project. GTA V is a trademark of Take-Two
 Interactive Software, Inc.
 
 ---
-
+https://discord.gg/a9zq8qKvH5
+discord : _1n7
 ## License
 
 Released under the [MIT License](../LICENSE).
