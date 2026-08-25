@@ -1,0 +1,5 @@
+# YTD Texture Editor - Python 3.11+
+
+PySide6>=6.6.0      # Qt 6 GUI
+numpy>=1.24         # texture (de)compression maths
+Pillow>=10.0        # PNG/JPG import-export, BC7 decoding (needs >= 9.4 for BC7)
