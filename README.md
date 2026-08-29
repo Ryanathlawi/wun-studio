@@ -95,8 +95,7 @@ hash, pointer and untouched texture is preserved byte-for-byte. See
 Requires **Python 3.11 or newer** (developed and tested on 3.12).
 
 ```bash
-git clone https://github.com/<your-user>/<your-repo>.git
-cd <your-repo>/ytd_editor
+git clone https://github.com/0xFL1n7/ytd_edtior.git
 pip install -r requirements.txt
 ```
 
