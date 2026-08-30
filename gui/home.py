@@ -19,6 +19,9 @@ from PySide6.QtWidgets import (QGraphicsOpacityEffect, QGridLayout,
 
 from . import backdrop, icons, theme
 
+# لا يُترجم: سطر الترحيب إنجليزي في اللغتين
+WELCOME = "Welcome — choose a tool below to begin."
+
 CARD_W = 274
 CARD_H = 184
 # ارتفاع ثابت للوصف يسع أربعة أسطر، لأن الإنجليزية تلفّ أكثر من العربية
@@ -200,10 +203,24 @@ class HomeScreen(QWidget):
         name.setLayoutDirection(Qt.LeftToRight)
         outer.addWidget(name)
 
+        # الوصف أفتح درجة من #Hint حتى تتدرّج الأسطر الثلاثة: اسم، وصف، ترحيب
         tagline = QLabel(theme.APP_TAGLINE)
         tagline.setObjectName("Hint")
+        tagline.setStyleSheet("color: %s; background: transparent;"
+                              % theme.TXT_DIM)
         tagline.setAlignment(Qt.AlignCenter)
         outer.addWidget(tagline)
+        outer.addSpacing(7)
+
+        # سطر الترحيب يبقى إنجليزيًا في اللغتين، فلا يمرّ على t() ويُثبَّت
+        # اتجاهه يسارًا حتى لا تقلبه الواجهة العربية
+        welcome = QLabel(WELCOME)
+        welcome.setFont(theme.font(9))
+        welcome.setStyleSheet("color: %s; background: transparent;"
+                              % theme.TXT_MUTE)
+        welcome.setAlignment(Qt.AlignCenter)
+        welcome.setLayoutDirection(Qt.LeftToRight)
+        outer.addWidget(welcome)
         outer.addSpacing(30)
 
         self.grid = QGridLayout()
