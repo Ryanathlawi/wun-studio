@@ -8,8 +8,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import (QEasingCurve, QPointF, QRectF, Qt, QTimer,
-                            QVariantAnimation)
+from PySide6.QtCore import (QEasingCurve, QPoint, QPointF, QRectF, Qt,
+                            QTimer, QVariantAnimation)
 from PySide6.QtGui import (QColor, QLinearGradient, QPainter, QPainterPath,
                            QPen)
 from PySide6.QtWidgets import (QGraphicsOpacityEffect, QGridLayout,
@@ -20,6 +20,8 @@ from . import backdrop, icons, theme
 CARD_W = 274
 CARD_H = 184
 LIFT = 6.0
+# هامش داخلي يستوعب الارتفاع والهالة، فلا تُقصّ البطاقة من حوافها
+PAD = 12
 
 
 class ToolCard(QWidget):
@@ -34,7 +36,7 @@ class ToolCard(QWidget):
         self.key = key
         self.icon_name = icon_name
         self.ready = ready
-        self.setFixedSize(CARD_W, CARD_H)
+        self.setFixedSize(CARD_W + PAD * 2, CARD_H + PAD * 2)
         self.setCursor(Qt.PointingHandCursor if ready else Qt.ArrowCursor)
         self.setAttribute(Qt.WA_Hover, True)
 
@@ -45,7 +47,7 @@ class ToolCard(QWidget):
         self._animation.valueChanged.connect(self._on_lift)
 
         column = QVBoxLayout(self)
-        column.setContentsMargins(22, 20, 22, 20)
+        column.setContentsMargins(PAD + 22, PAD + 20, PAD + 22, PAD + 20)
         column.setSpacing(10)
 
         head = QHBoxLayout()
@@ -105,8 +107,8 @@ class ToolCard(QWidget):
         p.setRenderHint(QPainter.Antialiasing, True)
 
         progress = self._lift / LIFT if LIFT else 0.0
-        rect = QRectF(self.rect()).adjusted(1, 1 - self._lift, -1,
-                                            -1 - self._lift)
+        rect = QRectF(self.rect()).adjusted(PAD, PAD - self._lift,
+                                            -PAD, -PAD - self._lift)
         radius = theme.R_PANEL + 3
 
         if progress > 0.01:
@@ -216,6 +218,24 @@ class HomeScreen(QWidget):
         self._cards = []
         self._shown = False
 
+        # التحريك إزاحة لنقطة أصل الفرشاة لا إعادة توليد للنقشة، فتكلفته
+        # نسخة واحدة للبلاطة في كل إطار. المؤقّت يتوقّف عند إخفاء الشاشة
+        # حتى لا يستهلك شيئًا أثناء التحرير.
+        self._drift = 0.0
+        self._timer = QTimer(self)
+        self._timer.setInterval(40)
+        self._timer.timeout.connect(self._advance)
+
+    def _advance(self):
+        self._drift += 0.35
+        if self._drift >= backdrop.TILE:
+            self._drift -= backdrop.TILE
+        self.update()
+
+    def hideEvent(self, ev):
+        self._timer.stop()
+        super().hideEvent(ev)
+
     def add_tool(self, key, icon_name, title, description, ready=True):
         card = ToolCard(key, icon_name, title, description, ready)
         card.clicked.connect(self.toolChosen)
@@ -226,6 +246,7 @@ class HomeScreen(QWidget):
 
     def showEvent(self, ev):
         super().showEvent(ev)
+        self._timer.start()
         if self._shown:
             return
         self._shown = True
@@ -247,6 +268,8 @@ class HomeScreen(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
         p.fillRect(self.rect(), QColor(theme.BG_APP))
-        backdrop.paint(p, self.rect(), strength=0.30, thickness=0.075)
+        shift = QPoint(int(-self._drift), int(-self._drift * 0.45))
+        backdrop.paint(p, self.rect(), offset=shift, strength=0.30,
+                       thickness=0.075)
         backdrop.glow(p, self.rect(), alpha=30)
         p.end()
