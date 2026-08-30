@@ -41,6 +41,10 @@ def save_ytd_as(ytd: YtdFile, edits, out_path, allow_overwrite_source=False):
                 "Choose a different name, or confirm that you want to "
                 "overwrite the source .ytd.")
 
+    # كل حفظة تبدأ من بكسلات الملف الأصلية، فالتعديل الذي تراجع عنه المستخدم
+    # بين حفظتين لا يبقى عالقًا في الذاكرة ويُكتب مرة أخرى.
+    ytd.restore_pixels()
+
     by_index = {t.index: t for t in ytd.textures}
     applied = []
     problems = []

@@ -1,33 +1,39 @@
 """
-YTD Texture Editor - application entry point.
+محرّر تكستشرات YTD - نقطة الدخول.
 
-Run with:
-    python main.py            (from inside the ytd_editor folder)
-    python -m ytd_editor.main (from the parent folder)
+التشغيل:
+    python main.py                 (من داخل مجلد المشروع)
+    python main.py ملف.ytd         (فتح ملف مباشرة)
+    python -m <اسم_المجلد>.main    (من المجلد الأب)
 """
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 
-# Allow `python main.py` to work without installing the package: put the
-# folder that *contains* ytd_editor/ on the import path.
+# يسمح بتشغيل `python main.py` دون تثبيت الحزمة: نضع المجلد الذي *يحوي*
+# مجلد المشروع في مسار الاستيراد.
 _PKG_DIR = os.path.dirname(os.path.abspath(__file__))
 _PARENT = os.path.dirname(_PKG_DIR)
 if _PARENT not in sys.path:
     sys.path.insert(0, _PARENT)
 
+# اسم الحزمة يُشتق من اسم المجلد الفعلي بدل كتابته حرفيًا، فيعمل المشروع
+# مهما كان اسم المجلد الذي استُنسخ إليه.
+_PKG = os.path.basename(_PKG_DIR)
+
 
 REQUIREMENTS = [
-    ("PySide6", "PySide6", "the Qt user interface"),
-    ("numpy", "numpy", "texture encoding and decoding"),
-    ("PIL", "Pillow", "PNG import/export and BC7 decoding"),
+    ("PySide6", "PySide6", "واجهة Qt"),
+    ("numpy", "numpy", "ترميز التكستشرات وفكّها"),
+    ("PIL", "Pillow", "استيراد وتصدير الصور وفكّ BC7"),
 ]
 
 
 def check_dependencies():
-    """Fail loudly and usefully instead of with a bare ImportError."""
+    """رسالة واضحة بدل ImportError خام."""
     missing = []
     for module, package, purpose in REQUIREMENTS:
         try:
@@ -37,20 +43,18 @@ def check_dependencies():
     if not missing:
         return
 
-    lines = ["YTD Texture Editor cannot start - missing dependencies:", ""]
+    lines = ["تعذّر تشغيل محرّر تكستشرات YTD - حزم ناقصة:", ""]
     for package, purpose in missing:
-        lines.append("  - %s   (needed for %s)" % (package, purpose))
-    lines += ["", "Install everything with:", "",
-              "    pip install -r requirements.txt", ""]
+        lines.append("  - %s   (مطلوبة لـ %s)" % (package, purpose))
+    lines += ["", "ثبّتها كلها بالأمر:", "", "    pip install -r requirements.txt", ""]
     message = "\n".join(lines)
 
     print(message, file=sys.stderr)
-    # If Qt itself is available, show the message in a dialog too.
     if all(p != "PySide6" for p, _ in missing):
         try:
             from PySide6.QtWidgets import QApplication, QMessageBox
             app = QApplication.instance() or QApplication(sys.argv)
-            QMessageBox.critical(None, "Missing dependencies", message)
+            QMessageBox.critical(None, "حزم ناقصة", message)
         except Exception:
             pass
     sys.exit(1)
@@ -62,20 +66,26 @@ def main():
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication
 
-    from ytd_editor.gui.main_window import MainWindow
-    from ytd_editor.gui.style import DARK_QSS
+    theme = importlib.import_module(_PKG + ".gui.theme")
+    window_module = importlib.import_module(_PKG + ".gui.main_window")
 
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    # AA_UseHighDpiPixmaps صار سلوكًا افتراضيًا في Qt 6، وضبطه يطلق تحذير إهمال
     app = QApplication(sys.argv)
-    app.setApplicationName("YTD Texture Editor")
+    app.setApplicationName("محرّر تكستشرات YTD")
     app.setOrganizationName("YTD Texture Editor")
     app.setStyle("Fusion")
-    app.setStyleSheet(DARK_QSS)
 
-    window = MainWindow()
+    # الخطوط قبل ورقة الأنماط: الأنماط تشير إلى اسم عائلة الخط المحمّل.
+    theme.load_fonts()
+    theme.apply_palette(app)
+    app.setFont(theme.font(10))
+    app.setLayoutDirection(Qt.RightToLeft)
+    app.setStyleSheet(theme.qss())
+
+    window = window_module.MainWindow()
     window.show()
 
-    # Optional: open a .ytd passed on the command line / dropped on the exe.
+    # فتح ملف مُمرَّر في سطر الأوامر أو مُفلَت على الاختصار
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     if args and os.path.isfile(args[0]):
         window.load_ytd(args[0])

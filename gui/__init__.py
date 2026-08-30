@@ -1,1 +1,1 @@
-"""GUI: main window, canvas, toolbar, sidebars."""
+"""واجهة محرّر تكستشرات YTD."""

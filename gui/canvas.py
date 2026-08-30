@@ -1,18 +1,20 @@
 """
-The editing canvas: zoom / pan / brush / eraser / text / shapes / undo.
+مساحة الرسم: التكبير والتحريك والفرشاة والممحاة والنص والأشكال والتراجع.
 
-The canvas always works at the texture's native resolution. Zooming only
-changes how it is displayed, never the pixel data, so a texture keeps its
-exact dimensions all the way back into the .ytd.
+المبدأ الثابت: الكانفس يعمل دائمًا على الدقة الأصلية للتكستشر. التكبير يغيّر
+طريقة العرض فقط ولا يمسّ البكسلات إطلاقًا، فتحتفظ الصورة بأبعادها بالضبط
+حتى تعود إلى ملف الـ ytd.
 """
 
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import (QPoint, QPointF, QRect, QRectF, QSizeF, Qt, Signal)
-from PySide6.QtGui import (QBrush, QColor, QFont, QImage, QPainter, QPen,
-                           QPixmap, QTransform)
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSizeF, Qt, Signal
+from PySide6.QtGui import (QBrush, QColor, QFont, QFontMetricsF, QImage,
+                           QPainter, QPen, QPixmap, QTransform)
 from PySide6.QtWidgets import QWidget
+
+from . import theme
 
 MIN_ZOOM = 0.02
 MAX_ZOOM = 64.0
@@ -26,13 +28,15 @@ TOOL_ELLIPSE = "ellipse"
 TOOL_LINE = "line"
 TOOL_PICK = "pick"
 
+_SELECT = QColor(theme.ACCENT)
+
 
 # --------------------------------------------------------------------------
-# numpy <-> QImage
+# التحويل بين numpy و QImage
 # --------------------------------------------------------------------------
 
 def numpy_to_qimage(arr: np.ndarray) -> QImage:
-    """(h, w, 4) uint8 RGBA -> QImage (owns its own buffer)."""
+    """مصفوفة RGBA بشكل (h, w, 4) إلى QImage تملك ذاكرتها الخاصة."""
     arr = np.ascontiguousarray(arr, dtype=np.uint8)
     h, w = arr.shape[:2]
     img = QImage(arr.data, w, h, w * 4, QImage.Format_RGBA8888)
@@ -40,29 +44,39 @@ def numpy_to_qimage(arr: np.ndarray) -> QImage:
 
 
 def qimage_to_numpy(img: QImage) -> np.ndarray:
-    """QImage -> (h, w, 4) uint8 RGBA."""
+    """
+    QImage إلى مصفوفة RGBA بشكل (h, w, 4).
+
+    النتيجة نسخة مستقلة قابلة للكتابة دائمًا: `constBits` يعطي عرضًا للقراءة
+    فقط على ذاكرة الصورة الحيّة، ولو أُعيد كما هو لتغيّرت التعديلات المخزّنة
+    كلما رسم المستخدم على الكانفس بعدها.
+    """
     if img.format() != QImage.Format_RGBA8888:
         img = img.convertToFormat(QImage.Format_RGBA8888)
     w, h = img.width(), img.height()
     ptr = img.constBits()
     buf = np.frombuffer(memoryview(ptr), dtype=np.uint8, count=img.sizeInBytes())
     buf = buf.reshape(h, img.bytesPerLine() // 4, 4)
-    return np.ascontiguousarray(buf[:, :w, :])
+    return np.array(buf[:, :w, :], dtype=np.uint8, copy=True)
 
+
+# --------------------------------------------------------------------------
+# الطبقات العائمة
+# --------------------------------------------------------------------------
 
 class TextItem:
-    """A floating, movable piece of text that has not been baked in yet."""
+    """نص عائم قابل للتحريك لم يُدمج بعد في بكسلات التكستشر."""
 
     def __init__(self, text, pos, family, size, color, bold=False, italic=False):
         self.text = text
-        self.pos = QPointF(pos)          # image coordinates, text baseline-left
+        self.pos = QPointF(pos)          # إحداثيات الصورة، عند خط أساس النص
         self.family = family
         self.size = size
         self.color = QColor(color)
         self.bold = bold
         self.italic = italic
 
-    def font(self):
+    def font(self) -> QFont:
         f = QFont(self.family)
         f.setPixelSize(max(1, int(self.size)))
         f.setBold(self.bold)
@@ -72,18 +86,17 @@ class TextItem:
 
 class ImageItem:
     """
-    An imported picture floating above the texture until it is applied.
+    صورة مستوردة تطفو فوق التكستشر حتى تُثبَّت.
 
-    Like TextItem, this lives outside the pixel data: it can be moved, scaled
-    and discarded freely, and only becomes part of the texture when the user
-    confirms it.
+    مثل النص، تعيش خارج بيانات البكسل: تُحرَّك وتُحجَّم وتُلغى بحرية، ولا
+    تصير جزءًا من التكستشر إلا عند تأكيد المستخدم.
     """
 
     HANDLES = ("tl", "tr", "bl", "br")
 
     def __init__(self, image: QImage, pos, width, height):
-        self.image = image                    # the source picture, unmodified
-        self.pos = QPointF(pos)               # top-left, in image coordinates
+        self.image = image                    # الصورة المصدر كما هي
+        self.pos = QPointF(pos)               # الزاوية العليا بإحداثيات الصورة
         self.width = float(max(1.0, width))
         self.height = float(max(1.0, height))
         self.opacity = 1.0
@@ -107,42 +120,45 @@ class ImageItem:
                 "bl": r.bottomLeft(), "br": r.bottomRight()}[handle]
 
     def resize_from(self, handle, img_pt, keep_aspect=True, minimum=4.0):
-        """Drag one corner, keeping the opposite corner pinned."""
+        """سحب زاوية مع تثبيت الزاوية المقابلة."""
         r = self.rect()
         left, top, right, bottom = r.left(), r.top(), r.right(), r.bottom()
 
-        if handle in ("br", "tr"):
-            new_w = img_pt.x() - left
-        else:
-            new_w = right - img_pt.x()
-        if handle in ("br", "bl"):
-            new_h = img_pt.y() - top
-        else:
-            new_h = bottom - img_pt.y()
-
+        new_w = (img_pt.x() - left) if handle in ("br", "tr") else (right - img_pt.x())
+        new_h = (img_pt.y() - top) if handle in ("br", "bl") else (bottom - img_pt.y())
         new_w = max(minimum, new_w)
         new_h = max(minimum, new_h)
-        if keep_aspect:
-            # drive height from width so the picture never skews while dragging
-            new_h = max(minimum, new_w / self.aspect)
 
+        if keep_aspect:
+            if new_w / max(1e-6, self.aspect) > new_h:
+                new_h = new_w / max(1e-6, self.aspect)
+            else:
+                new_w = new_h * self.aspect
+
+        if handle in ("tl", "bl"):
+            left = right - new_w
+        if handle in ("tl", "tr"):
+            top = bottom - new_h
+
+        self.pos = QPointF(left, top)
         self.width = new_w
         self.height = new_h
-        x = left if handle in ("br", "tr") else right - new_w
-        y = top if handle in ("br", "bl") else bottom - new_h
-        self.pos = QPointF(x, y)
 
+
+# --------------------------------------------------------------------------
+# الكانفس
+# --------------------------------------------------------------------------
 
 class Canvas(QWidget):
-    """Interactive texture editor surface."""
+    """مساحة العرض والتحرير."""
 
     zoomChanged = Signal(float)
     cursorMoved = Signal(int, int)
     imageChanged = Signal()
-    historyChanged = Signal(bool, bool)      # can_undo, can_redo
-    textItemChanged = Signal(object)         # TextItem or None
-    imageItemChanged = Signal(object)        # ImageItem or None (placed/cleared)
-    imageItemMoved = Signal(object)          # ImageItem, while dragging/resizing
+    historyChanged = Signal(bool, bool)      # يمكن التراجع، يمكن الإعادة
+    textItemChanged = Signal(object)         # TextItem أو None
+    imageItemChanged = Signal(object)        # ImageItem أو None
+    imageItemMoved = Signal(object)          # أثناء السحب أو التحجيم
     colorPicked = Signal(QColor)
 
     def __init__(self, parent=None):
@@ -150,16 +166,18 @@ class Canvas(QWidget):
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMinimumSize(320, 240)
+        # الكانفس يعمل بإحداثيات صورة، فلا يُعكس مع اتجاه الواجهة العربي
+        self.setLayoutDirection(Qt.LeftToRight)
 
         self.image: QImage | None = None
         self.zoom = 1.0
-        self.offset = QPointF(0, 0)          # top-left of image, in widget px
+        self.offset = QPointF(0, 0)          # زاوية الصورة العليا ببكسل الودجت
 
         self.tool = TOOL_BRUSH
         self.brush_size = 16
-        self.brush_color = QColor(255, 60, 60, 255)
+        self.brush_color = QColor(theme.ACCENT)
         self.brush_opacity = 1.0
-        self.brush_hardness = True           # antialiased round brush
+        self.brush_hardness = True           # حواف ناعمة
         self.shape_filled = False
 
         self.text_item: TextItem | None = None
@@ -169,7 +187,7 @@ class Canvas(QWidget):
         self._undo: list[QImage] = []
         self._redo: list[QImage] = []
 
-        self._stroke: QImage | None = None   # brush layer, composited on release
+        self._stroke: QImage | None = None   # طبقة الفرشاة، تُدمج عند الإفلات
         self._last_pt: QPointF | None = None
         self._drag_start: QPointF | None = None
         self._drag_now: QPointF | None = None
@@ -181,18 +199,20 @@ class Canvas(QWidget):
         self._image_grab = QPointF()
         self._image_handle = None
         self._space_down = False
+        self._hover = QPointF(-999, -999)
 
         self._checker = self._make_checker()
 
-    # ------------------------------------------------------------- helpers
+    # ------------------------------------------------------------- مساعدات
 
     @staticmethod
     def _make_checker() -> QPixmap:
+        """رقعة شطرنجية تُظهر مناطق الشفافية."""
         pm = QPixmap(16, 16)
-        pm.fill(QColor(58, 58, 62))
+        pm.fill(QColor("#2C3038"))
         p = QPainter(pm)
-        p.fillRect(0, 0, 8, 8, QColor(48, 48, 52))
-        p.fillRect(8, 8, 8, 8, QColor(48, 48, 52))
+        p.fillRect(0, 0, 8, 8, QColor("#23272E"))
+        p.fillRect(8, 8, 8, 8, QColor("#23272E"))
         p.end()
         return pm
 
@@ -204,10 +224,10 @@ class Canvas(QWidget):
             return (0, 0)
         return (self.image.width(), self.image.height())
 
-    # ------------------------------------------------------------ document
+    # -------------------------------------------------------------- المستند
 
     def load_numpy(self, arr: np.ndarray):
-        """Replace the document (clears history)."""
+        """استبدال المستند بالكامل (يمسح سجل التراجع)."""
         self.image = numpy_to_qimage(arr)
         self._undo.clear()
         self._redo.clear()
@@ -232,7 +252,7 @@ class Canvas(QWidget):
         self.historyChanged.emit(False, False)
         self.update()
 
-    # ------------------------------------------------------------- history
+    # --------------------------------------------------------------- السجل
 
     def push_undo(self):
         if self.image is None:
@@ -264,7 +284,7 @@ class Canvas(QWidget):
     def _emit_history(self):
         self.historyChanged.emit(bool(self._undo), bool(self._redo))
 
-    # ---------------------------------------------------------------- view
+    # --------------------------------------------------------------- العرض
 
     def fit_to_view(self):
         if self.image is None:
@@ -272,11 +292,10 @@ class Canvas(QWidget):
         w, h = self.image.width(), self.image.height()
         if w == 0 or h == 0:
             return
-        pad = 32
+        pad = 48
         sx = max(1, self.width() - pad) / w
         sy = max(1, self.height() - pad) / h
-        self.set_zoom(min(sx, sy, 1.0) if min(sx, sy) < 1.0 else min(sx, sy),
-                      center=True)
+        self.set_zoom(min(sx, sy), center=True)
 
     def reset_zoom(self):
         self.set_zoom(1.0, center=True)
@@ -291,7 +310,7 @@ class Canvas(QWidget):
         if abs(new - self.zoom) < 1e-9:
             return
         self.zoom = new
-        # keep the point under the cursor anchored
+        # تثبيت النقطة الواقعة تحت المؤشر في مكانها
         self.offset = QPointF(focus.x() - img_pt.x() * self.zoom,
                               focus.y() - img_pt.y() * self.zoom)
         self.zoomChanged.emit(self.zoom)
@@ -321,21 +340,22 @@ class Canvas(QWidget):
         if self.image is not None and ev.oldSize().width() <= 0:
             self.fit_to_view()
 
-    # ---------------------------------------------------------------- text
+    # ----------------------------------------------------------------- النص
 
     def set_text_item(self, item):
         self.text_item = item
         self.textItemChanged.emit(item)
         self.update()
 
-    def apply_text(self):
-        """Bake the floating text into the pixel data."""
+    def apply_text(self) -> bool:
+        """دمج النص العائم داخل بيانات البكسل."""
         if self.image is None or self.text_item is None or not self.text_item.text:
             return False
         self.push_undo()
         p = QPainter(self.image)
         p.setRenderHint(QPainter.Antialiasing, True)
         p.setRenderHint(QPainter.TextAntialiasing, True)
+        p.setLayoutDirection(Qt.RightToLeft)
         p.setFont(self.text_item.font())
         p.setPen(QPen(self.text_item.color))
         p.drawText(self.text_item.pos, self.text_item.text)
@@ -348,15 +368,14 @@ class Canvas(QWidget):
     def cancel_text(self):
         self.set_text_item(None)
 
-    # -------------------------------------------------------- placed image
+    # -------------------------------------------------------- الصورة العائمة
 
     def place_image(self, arr: np.ndarray, margin=0.85):
         """
-        Drop an imported picture onto the canvas as a floating layer.
+        إسقاط صورة مستوردة على الكانفس كطبقة عائمة.
 
-        It starts centred and scaled down to fit inside the texture (never
-        scaled up), so an oversized photo lands somewhere usable instead of
-        covering everything.
+        تبدأ في المنتصف ومصغّرة لتدخل داخل التكستشر (ولا تُكبَّر أبدًا)، حتى
+        لا تغطي صورة ضخمة كل شيء عند لصقها.
         """
         if self.image is None:
             return None
@@ -377,8 +396,8 @@ class Canvas(QWidget):
         self.imageItemChanged.emit(item)
         self.update()
 
-    def apply_image_item(self):
-        """Bake the floating picture into the pixel data."""
+    def apply_image_item(self) -> bool:
+        """دمج الصورة العائمة داخل بيانات البكسل."""
         if self.image is None or self.image_item is None:
             return False
         item = self.image_item
@@ -397,7 +416,7 @@ class Canvas(QWidget):
         self.set_image_item(None)
 
     def fit_image_item(self):
-        """Stretch the floating picture over the whole texture."""
+        """تمديد الصورة العائمة على كامل التكستشر."""
         if self.image_item is None or self.image is None:
             return
         self.image_item.pos = QPointF(0, 0)
@@ -407,7 +426,7 @@ class Canvas(QWidget):
         self.update()
 
     def reset_image_item_size(self):
-        """Return the floating picture to its own pixel dimensions."""
+        """إعادة الصورة العائمة إلى أبعادها الأصلية."""
         if self.image_item is None:
             return
         w, h = self.image_item.source_size
@@ -416,8 +435,8 @@ class Canvas(QWidget):
         self.imageItemMoved.emit(self.image_item)
         self.update()
 
-    def _image_handle_at(self, widget_pt: QPointF, tolerance=8.0):
-        """Which corner grip (if any) is under the cursor, in widget space."""
+    def _image_handle_at(self, widget_pt: QPointF, tolerance=9.0):
+        """أي مقبض زاوية يقع تحت المؤشر (بإحداثيات الودجت)."""
         if self.image_item is None:
             return None
         for handle in ImageItem.HANDLES:
@@ -432,7 +451,7 @@ class Canvas(QWidget):
             return False
         return self.image_item.rect().contains(img_pt)
 
-    # ------------------------------------------------------ whole-image ops
+    # ------------------------------------------------- عمليات على كامل الصورة
 
     def clear_image(self, color: QColor | None = None):
         if self.image is None:
@@ -443,7 +462,7 @@ class Canvas(QWidget):
         self.update()
 
     def rotate(self, degrees):
-        """Rotate by a multiple of 90 degrees (keeps the pixel data lossless)."""
+        """تدوير بمضاعفات 90 درجة (بلا فقد في البكسلات)."""
         if self.image is None:
             return
         self.push_undo()
@@ -462,12 +481,11 @@ class Canvas(QWidget):
 
     def scale_content(self, width, height, keep_canvas=True, smooth=True):
         """
-        Rescale the artwork.
+        تحجيم محتوى الصورة.
 
-        With `keep_canvas` (the default) the canvas keeps the texture's native
-        dimensions and the scaled artwork is placed inside it - a .ytd texture
-        has to keep its original size to be patched back in, so this is the
-        variant that stays exportable.
+        مع keep_canvas (الوضع الافتراضي) يحتفظ الكانفس بأبعاد التكستشر الأصلية
+        ويوضع المحتوى المحجَّم بداخله، لأن تكستشر الـ ytd لا بد أن يبقى بأبعاده
+        الأصلية ليعود إلى الملف، فهذا هو الخيار الذي يبقى قابلًا للتصدير.
         """
         if self.image is None:
             return
@@ -490,11 +508,10 @@ class Canvas(QWidget):
 
     def crop_to(self, rect: QRect, keep_size=True):
         """
-        Crop to `rect`.
+        قص إلى المستطيل المحدد.
 
-        `keep_size` re-expands the crop back to the original canvas size, which
-        is what you normally want here: a .ytd texture must keep its original
-        dimensions to be written back in place.
+        keep_size يعيد تمديد الاقتصاص إلى حجم الكانفس الأصلي، وهو المطلوب
+        عادةً هنا لأن التكستشر لا بد أن يحافظ على أبعاده ليُكتب في مكانه.
         """
         if self.image is None:
             return
@@ -518,7 +535,7 @@ class Canvas(QWidget):
         self.update()
 
     def overlay_image(self, arr: np.ndarray, fit=True):
-        """Paste another image on top of the current texture."""
+        """لصق صورة أخرى فوق التكستشر الحالي."""
         if self.image is None:
             return
         self.push_undo()
@@ -533,28 +550,28 @@ class Canvas(QWidget):
         self.imageChanged.emit()
         self.update()
 
-    # -------------------------------------------------------------- events
+    # --------------------------------------------------------------- الرسم
 
-    def _pen(self, color=None):
-        pen = QPen(color if color is not None else QColor(self.brush_color.rgb() | 0xFF000000))
+    def _pen(self, color=None) -> QPen:
+        pen = QPen(color if color is not None
+                   else QColor(self.brush_color.rgb() | 0xFF000000))
         pen.setWidthF(max(1.0, float(self.brush_size)))
         pen.setCapStyle(Qt.RoundCap)
         pen.setJoinStyle(Qt.RoundJoin)
         return pen
 
     def _begin_stroke(self, img_pt):
+        self.push_undo()
         if self.tool == TOOL_ERASER:
-            self.push_undo()
             self._stroke = None
         else:
-            self.push_undo()
             self._stroke = QImage(self.image.size(), QImage.Format_RGBA8888)
             self._stroke.fill(Qt.transparent)
         self._last_pt = img_pt
         self._paint_segment(img_pt, img_pt)
 
     def _paint_segment(self, a: QPointF, b: QPointF):
-        """Draw one stroke segment. Brush goes to the layer, eraser to the image."""
+        """رسم مقطع واحد: الفرشاة على الطبقة، والممحاة على الصورة مباشرة."""
         if self.tool == TOOL_ERASER:
             p = QPainter(self.image)
             p.setRenderHint(QPainter.Antialiasing, self.brush_hardness)
@@ -574,11 +591,11 @@ class Canvas(QWidget):
 
     def _commit_stroke(self):
         """
-        Composite the brush layer at the chosen opacity.
+        دمج طبقة الفرشاة بالشفافية المختارة.
 
-        Building the stroke on its own layer (rather than painting semi
-        transparent segments straight onto the texture) keeps the opacity
-        uniform - overlapping segments in a single stroke do not stack up.
+        بناء الضربة على طبقة مستقلة - بدل رسم مقاطع نصف شفافة مباشرة على
+        التكستشر - يبقي الشفافية منتظمة، فلا تتراكم المقاطع المتداخلة داخل
+        الضربة الواحدة فتصير أغمق.
         """
         if self._stroke is not None and self.image is not None:
             p = QPainter(self.image)
@@ -600,10 +617,9 @@ class Canvas(QWidget):
         col = QColor(self.brush_color)
         col.setAlpha(max(1, int(round(self.brush_opacity * 255))))
         p.setPen(self._pen(col))
-        if self.shape_filled and self.tool in (TOOL_RECT, TOOL_ELLIPSE):
-            p.setBrush(QBrush(col))
-        else:
-            p.setBrush(Qt.NoBrush)
+        p.setBrush(QBrush(col) if (self.shape_filled and
+                                   self.tool in (TOOL_RECT, TOOL_ELLIPSE))
+                   else Qt.NoBrush)
         if self.tool == TOOL_RECT:
             p.drawRect(rect)
         elif self.tool == TOOL_ELLIPSE:
@@ -619,12 +635,13 @@ class Canvas(QWidget):
     def _text_hit(self, img_pt) -> bool:
         if self.text_item is None:
             return False
-        from PySide6.QtGui import QFontMetricsF
         fm = QFontMetricsF(self.text_item.font())
         rect = fm.boundingRect(self.text_item.text or " ")
         rect.moveTo(self.text_item.pos.x(), self.text_item.pos.y() - fm.ascent())
         rect.adjust(-4, -4, 4, 4)
         return rect.contains(img_pt)
+
+    # -------------------------------------------------------------- الأحداث
 
     def mousePressEvent(self, ev):
         if self.image is None:
@@ -645,8 +662,8 @@ class Canvas(QWidget):
             self._pick_color(img_pt)
             return
 
-        # A floating picture takes priority over drawing: its corner grips
-        # first (they are small), then the text box, then its body.
+        # الطبقة العائمة لها الأولوية على الرسم: المقابض الصغيرة أولًا،
+        # ثم صندوق النص، ثم جسم الصورة.
         handle = self._image_handle_at(pos)
         if handle is not None:
             self._image_handle = handle
@@ -664,9 +681,8 @@ class Canvas(QWidget):
             return
 
         if self.tool == TOOL_TEXT:
-            item = TextItem("New text", img_pt, "Segoe UI", 48,
-                            QColor(self.brush_color))
-            self.set_text_item(item)
+            self.set_text_item(TextItem("نص جديد", img_pt, theme.FONT_FAMILY,
+                                        48, QColor(self.brush_color)))
             return
 
         if self.tool in (TOOL_BRUSH, TOOL_ERASER):
@@ -681,6 +697,7 @@ class Canvas(QWidget):
             return
         pos = QPointF(ev.position())
         img_pt = self.widget_to_image(pos)
+        self._hover = pos
         self.cursorMoved.emit(int(img_pt.x()), int(img_pt.y()))
 
         if self._panning:
@@ -708,7 +725,6 @@ class Canvas(QWidget):
             self.update()
             return
 
-        # hover feedback for the floating picture
         if self.image_item is not None and not (ev.buttons() & Qt.LeftButton):
             handle = self._image_handle_at(pos)
             if handle in ("tl", "br"):
@@ -723,10 +739,9 @@ class Canvas(QWidget):
         if self._last_pt is not None and (ev.buttons() & Qt.LeftButton):
             self._paint_segment(self._last_pt, img_pt)
             self._last_pt = img_pt
-            self.update()
         elif self._drag_start is not None and (ev.buttons() & Qt.LeftButton):
             self._drag_now = img_pt
-            self.update()
+        self.update()
 
     def mouseReleaseEvent(self, ev):
         if self._panning and (ev.button() == Qt.MiddleButton or not self._space_down):
@@ -747,6 +762,11 @@ class Canvas(QWidget):
             self._commit_stroke()
         elif self._drag_start is not None:
             self._commit_shape()
+
+    def leaveEvent(self, ev):
+        self._hover = QPointF(-999, -999)
+        self.update()
+        super().leaveEvent(ev)
 
     def wheelEvent(self, ev):
         if self.image is None:
@@ -782,16 +802,13 @@ class Canvas(QWidget):
         if 0 <= x < self.image.width() and 0 <= y < self.image.height():
             self.colorPicked.emit(self.image.pixelColor(x, y))
 
-    # --------------------------------------------------------------- paint
+    # ---------------------------------------------------------------- الرسم
 
     def paintEvent(self, ev):
         p = QPainter(self)
-        p.fillRect(self.rect(), QColor(30, 31, 34))
+        p.fillRect(self.rect(), QColor(theme.BG_CANVAS))
 
         if self.image is None:
-            p.setPen(QColor(120, 122, 128))
-            p.drawText(self.rect(), Qt.AlignCenter,
-                       "Open a .ytd file, then pick a texture from the left.")
             p.end()
             return
 
@@ -799,14 +816,14 @@ class Canvas(QWidget):
         h = self.image.height() * self.zoom
         target = QRectF(self.offset.x(), self.offset.y(), w, h)
 
-        # transparency checkerboard, locked to the image rect
+        # الرقعة الشطرنجية محصورة داخل مستطيل الصورة
         p.save()
         p.setClipRect(target)
         p.setBrushOrigin(target.topLeft().toPoint())
         p.fillRect(target, QBrush(self._checker))
         p.restore()
 
-        # nearest-neighbour when magnified so texel edges stay crisp
+        # عند التكبير نستخدم أقرب جار حتى تبقى حواف التكسل حادة
         p.setRenderHint(QPainter.SmoothPixmapTransform, self.zoom < 1.0)
         p.drawImage(target, self.image)
 
@@ -819,7 +836,7 @@ class Canvas(QWidget):
         p.translate(self.offset)
         p.scale(self.zoom, self.zoom)
 
-        # the floating picture sits above the texture but below the chrome
+        # الصورة العائمة فوق التكستشر وتحت عناصر الواجهة
         if self.image_item is not None:
             p.setRenderHint(QPainter.SmoothPixmapTransform, True)
             p.setOpacity(self.image_item.opacity)
@@ -829,9 +846,10 @@ class Canvas(QWidget):
         if self._drag_start is not None and self._drag_now is not None:
             col = QColor(self.brush_color)
             col.setAlpha(max(1, int(round(self.brush_opacity * 255))))
-            pen = self._pen(col)
-            p.setPen(pen)
-            p.setBrush(QBrush(col) if self.shape_filled else Qt.NoBrush)
+            p.setPen(self._pen(col))
+            p.setBrush(QBrush(col) if (self.shape_filled and
+                                       self.tool in (TOOL_RECT, TOOL_ELLIPSE))
+                       else Qt.NoBrush)
             rect = QRectF(self._drag_start, self._drag_now).normalized()
             if self.tool == TOOL_RECT:
                 p.drawRect(rect)
@@ -842,49 +860,58 @@ class Canvas(QWidget):
 
         if self.text_item is not None:
             p.setRenderHint(QPainter.TextAntialiasing, True)
+            p.setLayoutDirection(Qt.RightToLeft)
             p.setFont(self.text_item.font())
             p.setPen(QPen(self.text_item.color))
             p.drawText(self.text_item.pos, self.text_item.text)
         p.restore()
 
-        # selection outline for the pending text, drawn unscaled so it stays
-        # a hairline at any zoom level
+        # إطار اختيار النص، يُرسم بلا تكبير ليبقى شعرةً عند أي نسبة
         if self.text_item is not None:
-            from PySide6.QtGui import QFontMetricsF
             fm = QFontMetricsF(self.text_item.font())
             r = fm.boundingRect(self.text_item.text or " ")
             tl = self.image_to_widget(QPointF(self.text_item.pos.x(),
                                               self.text_item.pos.y() - fm.ascent()))
             box = QRectF(tl, QPointF(tl.x() + r.width() * self.zoom,
                                      tl.y() + fm.height() * self.zoom))
-            pen = QPen(QColor(90, 170, 255))
+            pen = QPen(_SELECT)
             pen.setStyle(Qt.DashLine)
-            pen.setWidth(1)
             p.setPen(pen)
             p.setBrush(Qt.NoBrush)
             p.drawRect(box.adjusted(-3, -3, 3, 3))
 
-        # selection frame + corner grips for the floating picture, drawn
-        # unscaled so the grips stay grabbable at any zoom level
+        # إطار ومقابض الصورة العائمة، بلا تكبير حتى تبقى قابلة للإمساك
         if self.image_item is not None:
             tl = self.image_to_widget(self.image_item.rect().topLeft())
             br = self.image_to_widget(self.image_item.rect().bottomRight())
-            frame = QRectF(tl, br)
-            pen = QPen(QColor(90, 170, 255))
+            pen = QPen(_SELECT)
             pen.setStyle(Qt.DashLine)
-            pen.setWidth(1)
             p.setPen(pen)
             p.setBrush(Qt.NoBrush)
-            p.drawRect(frame)
+            p.drawRect(QRectF(tl, br))
 
-            p.setPen(QPen(QColor(20, 22, 26)))
-            p.setBrush(QBrush(QColor(90, 170, 255)))
+            p.setPen(QPen(QColor(theme.BG_APP)))
+            p.setBrush(QBrush(_SELECT))
             for handle in ImageItem.HANDLES:
                 c = self.image_to_widget(self.image_item.corner(handle))
-                p.drawRect(QRectF(c.x() - 4, c.y() - 4, 8, 8))
+                p.drawRoundedRect(QRectF(c.x() - 4.5, c.y() - 4.5, 9, 9), 2, 2)
 
-        # 1px border around the texture
-        p.setPen(QPen(QColor(70, 72, 78)))
+        # حلقة تُظهر حجم الفرشاة الحقيقي تحت المؤشر
+        if (self.tool in (TOOL_BRUSH, TOOL_ERASER)
+                and self._hover.x() > -900 and not self._panning
+                and self.image_item is None):
+            radius = max(1.5, self.brush_size * self.zoom / 2)
+            ring = QPen(QColor(255, 255, 255, 190))
+            ring.setWidth(1)
+            p.setPen(ring)
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(self._hover, radius, radius)
+            ring.setColor(QColor(0, 0, 0, 130))
+            p.setPen(ring)
+            p.drawEllipse(self._hover, radius + 1, radius + 1)
+
+        # إطار رفيع حول التكستشر
+        p.setPen(QPen(QColor(theme.BORDER_HI)))
         p.setBrush(Qt.NoBrush)
         p.drawRect(target)
         p.end()

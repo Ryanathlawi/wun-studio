@@ -61,6 +61,13 @@ hash, pointer and untouched texture is preserved byte-for-byte. See
 
 ## Features
 
+### Interface
+
+The UI is Arabic and right-to-left, built on a frameless window with a custom
+title bar, a vertical tool rail, a searchable texture panel and a collapsible
+properties panel. Fonts are loaded from `assets/fonts/` at startup, falling
+back to a system font when the folder is empty.
+
 ### YTD handling
 - Reads every texture in a dictionary: name, dimensions, format, mip count
 - Preserves names, hashes, structure and unedited textures **byte-for-byte**
@@ -131,6 +138,10 @@ pip install -r requirements.txt
 
 ## Running
 
+On Windows, double-click `run.bat` (you can also drop a `.ytd` file onto it).
+
+From a terminal:
+
 ```bash
 cd ytd_editor
 python main.py
@@ -141,6 +152,10 @@ or from the parent folder:
 ```bash
 python -m ytd_editor.main
 ```
+
+> [!NOTE]
+> The package name is derived from the folder name at runtime, so the project
+> works whatever you clone it into.
 
 You can also pass a file directly:
 
@@ -373,6 +388,7 @@ compressor doing real work — it isn't hung.
 ```
 ytd_editor/
 ├── main.py                  entry point + dependency check
+├── run.bat                  one-click launcher (Windows)
 ├── requirements.txt
 ├── README.md
 ├── core/                    no Qt imports - usable as a headless library
@@ -380,14 +396,18 @@ ytd_editor/
 │   ├── ytd_handler.py       dictionary parsing + in-place pixel patching
 │   ├── texture_handler.py   BC1-BC7 and uncompressed codecs, mip chains
 │   └── export_handler.py    save orchestration, PNG/DDS export, image import
-├── gui/                     no YTD format knowledge
-│   ├── main_window.py       window, docks, status bar, all the wiring
+├── gui/                     no YTD format knowledge - Arabic, right-to-left
+│   ├── theme.py             design tokens, font loading, palette, stylesheet
+│   ├── icons.py             inline SVG icon factory (no icon assets needed)
+│   ├── widgets.py           reusable controls: sections, sliders, swatches
+│   ├── shell.py             frameless window + custom title bar
+│   ├── main_window.py       layout and all the wiring
 │   ├── canvas.py            zoom/pan/brush/eraser/text/images/shapes/undo
-│   ├── toolbar.py           top toolbar
-│   ├── texture_sidebar.py   left texture list with thumbnails
-│   ├── tool_panel.py        right-hand tool settings
-│   └── style.py             dark theme
+│   ├── tool_rail.py         vertical tool rail beside the canvas
+│   ├── texture_list.py      texture panel with a custom-painted delegate
+│   └── properties.py        collapsible properties panel
 └── assets/
+    └── fonts/               UI fonts, loaded at startup if present
 ```
 
 All YTD-format-specific logic is commented in place — the module docstrings of

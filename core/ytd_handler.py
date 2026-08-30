@@ -138,6 +138,9 @@ class YtdFile:
         self.res = resource
         self.path = path
         self.textures = []
+        # نسخة احتياطية من بايتات كل تكستشر قبل أول ترقيع له، مفتاحها الفهرس.
+        # لا تُملأ إلا عند التعديل الفعلي، فتبقى التكلفة بحجم ما عُدِّل فقط.
+        self._pristine = {}
         self._parse()
 
     # ---------------------------------------------------------------- load
@@ -482,7 +485,30 @@ class YtdFile:
         if loc is None:
             raise YtdError("Texture '%s' has an invalid data pointer." % entry.name)
         buf, off = loc
+        if entry.index not in self._pristine:
+            self._pristine[entry.index] = bytes(buf[off:off + entry.data_size])
         buf[off:off + len(data)] = data
+
+    def restore_pixels(self):
+        """
+        التراجع عن كل ترقيع طُبِّق على المورد في الذاكرة.
+
+        الحفظ يكتب البكسلات داخل المورد المحمّل نفسه، فلو حفظ المستخدم ثم
+        استرجع تكستشرًا ثم حفظ مرة أخرى، بقي التعديل القديم في الملف الناتج
+        لأنه صار جزءًا من الذاكرة. استدعاء هذه الدالة قبل تطبيق دفعة تعديلات
+        جديدة يضمن أن الملف المكتوب يعكس التعديلات الحالية فقط.
+        """
+        by_index = {t.index: t for t in self.textures}
+        for index, original in self._pristine.items():
+            entry = by_index.get(index)
+            if entry is None:
+                continue
+            loc = self.res.resolve(entry.data_pointer)
+            if loc is None:
+                continue
+            buf, off = loc
+            buf[off:off + len(original)] = original
+        self._pristine.clear()
 
     # ---------------------------------------------------------------- save
 
