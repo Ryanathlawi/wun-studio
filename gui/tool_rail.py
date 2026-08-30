@@ -21,8 +21,11 @@ TOOLS = [
     (cv.TOOL_RECT,    "rect",    "مستطيل", "R"),
     (cv.TOOL_ELLIPSE, "ellipse", "بيضاوي", "L"),
     (cv.TOOL_LINE,    "line",    "خط",     "N"),
-    (cv.TOOL_PICK,    "pick",    "ملقاط ألوان", "I"),
-    (cv.TOOL_PAN,     "pan",     "تحريك اللوحة", "H"),
+    (cv.TOOL_FILL,    "fill",     "دلو تعبئة", "F"),
+    (cv.TOOL_GRADIENT, "gradient", "تدرّج لوني", "G"),
+    (cv.TOOL_SELECT,  "select",   "تحديد مستطيل", "M"),
+    (cv.TOOL_PICK,    "pick",     "ملقاط ألوان", "I"),
+    (cv.TOOL_PAN,     "pan",      "تحريك اللوحة", "H"),
 ]
 
 

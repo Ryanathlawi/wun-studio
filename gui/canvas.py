@@ -14,6 +14,7 @@ from PySide6.QtGui import (QBrush, QColor, QFont, QFontMetricsF, QImage,
                            QPainter, QPen, QPixmap, QTransform)
 from PySide6.QtWidgets import QApplication, QWidget
 
+from ..core import adjust
 from . import theme
 
 MIN_ZOOM = 0.02
@@ -28,6 +29,12 @@ TOOL_ELLIPSE = "ellipse"
 TOOL_LINE = "line"
 TOOL_PICK = "pick"
 TOOL_PAN = "pan"
+TOOL_FILL = "fill"
+TOOL_GRADIENT = "gradient"
+TOOL_SELECT = "select"
+
+DRAG_TOOLS = (TOOL_RECT, TOOL_ELLIPSE, TOOL_LINE, TOOL_GRADIENT,
+              TOOL_SELECT)
 
 _SELECT = QColor(theme.ACCENT)
 
@@ -161,6 +168,8 @@ class Canvas(QWidget):
     imageItemChanged = Signal(object)        # ImageItem أو None
     imageItemMoved = Signal(object)          # أثناء السحب أو التحجيم
     colorPicked = Signal(QColor)
+    viewportChanged = Signal()
+    selectionChanged = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -184,6 +193,18 @@ class Canvas(QWidget):
         self.text_item: TextItem | None = None
         self.image_item: ImageItem | None = None
         self.image_keep_aspect = True
+
+        # التحديد يحصر كل أدوات الرسم داخله ما دام قائمًا
+        self.selection: QRect | None = None
+        self.fill_tolerance = 32
+        self.gradient_color = QColor(0, 0, 0, 255)
+
+        # طبقات عرض لا تمسّ البكسلات
+        self.preview: QImage | None = None     # معاينة التعديلات اللونية
+        self.compare: QImage | None = None     # نسخة «قبل» للمقارنة
+        self.compare_split = 0.5
+        self.show_grid = False
+        self.grid_size = 64
 
         self._undo: list[QImage] = []
         self._redo: list[QImage] = []
@@ -315,6 +336,7 @@ class Canvas(QWidget):
         self.offset = QPointF(focus.x() - img_pt.x() * self.zoom,
                               focus.y() - img_pt.y() * self.zoom)
         self.zoomChanged.emit(self.zoom)
+        self.viewportChanged.emit()
         self.update()
 
     def set_zoom(self, zoom, center=False):
@@ -326,6 +348,7 @@ class Canvas(QWidget):
             h = self.image.height() * self.zoom
             self.offset = QPointF((self.width() - w) / 2, (self.height() - h) / 2)
         self.zoomChanged.emit(self.zoom)
+        self.viewportChanged.emit()
         self.update()
 
     def widget_to_image(self, pt: QPointF) -> QPointF:
@@ -340,6 +363,7 @@ class Canvas(QWidget):
         super().resizeEvent(ev)
         if self.image is not None and ev.oldSize().width() <= 0:
             self.fit_to_view()
+        self.viewportChanged.emit()
 
     # ----------------------------------------------------------------- النص
 
@@ -575,6 +599,7 @@ class Canvas(QWidget):
         """رسم مقطع واحد: الفرشاة على الطبقة، والممحاة على الصورة مباشرة."""
         if self.tool == TOOL_ERASER:
             p = QPainter(self.image)
+            self._clip_to_selection(p)
             p.setRenderHint(QPainter.Antialiasing, self.brush_hardness)
             p.setCompositionMode(QPainter.CompositionMode_DestinationOut)
             col = QColor(0, 0, 0, max(1, int(round(self.brush_opacity * 255))))
@@ -583,6 +608,7 @@ class Canvas(QWidget):
             p.end()
         else:
             p = QPainter(self._stroke)
+            self._clip_to_selection(p)
             p.setRenderHint(QPainter.Antialiasing, self.brush_hardness)
             col = QColor(self.brush_color)
             col.setAlpha(255)
@@ -612,8 +638,23 @@ class Canvas(QWidget):
         if self.image is None or self._drag_start is None or self._drag_now is None:
             return
         rect = QRectF(self._drag_start, self._drag_now).normalized()
+
+        if self.tool == TOOL_SELECT:
+            self.set_selection(rect.toRect())
+            self._drag_start = None
+            self._drag_now = None
+            return
+
+        if self.tool == TOOL_GRADIENT:
+            start, end = self._drag_start, self._drag_now
+            self._drag_start = None
+            self._drag_now = None
+            self.apply_gradient(start, end)
+            return
+
         self.push_undo()
         p = QPainter(self.image)
+        self._clip_to_selection(p)
         p.setRenderHint(QPainter.Antialiasing, True)
         col = QColor(self.brush_color)
         col.setAlpha(max(1, int(round(self.brush_opacity * 255))))
@@ -631,6 +672,101 @@ class Canvas(QWidget):
         self._drag_start = None
         self._drag_now = None
         self.imageChanged.emit()
+        self.update()
+
+    def _clip_to_selection(self, painter: QPainter):
+        if self.selection is not None and not self.selection.isEmpty():
+            painter.setClipRect(self.selection)
+
+    def set_selection(self, rect: QRect | None):
+        if rect is not None:
+            rect = rect.intersected(self.image.rect()) if self.image else rect
+            if rect.width() < 2 or rect.height() < 2:
+                rect = None
+        self.selection = rect
+        self.selectionChanged.emit(rect)
+        self.update()
+
+    def select_all(self):
+        if self.image is not None:
+            self.set_selection(QRect(0, 0, self.image.width(),
+                                     self.image.height()))
+
+    def clear_selection(self):
+        self.set_selection(None)
+
+    def selection_bounds(self):
+        if self.selection is None or self.selection.isEmpty():
+            return None
+        r = self.selection
+        return (r.left(), r.top(), r.right() + 1, r.bottom() + 1)
+
+    def fill_at(self, img_pt):
+        if self.image is None:
+            return
+        x, y = int(img_pt.x()), int(img_pt.y())
+        if not (0 <= x < self.image.width() and 0 <= y < self.image.height()):
+            return
+        colour = self.brush_color
+        rgba = (colour.red(), colour.green(), colour.blue(),
+                max(1, int(round(self.brush_opacity * 255))))
+        self.push_undo()
+        filled = adjust.flood_fill(self.to_numpy(), x, y, rgba,
+                                   self.fill_tolerance,
+                                   self.selection_bounds())
+        self.image = numpy_to_qimage(filled)
+        self.imageChanged.emit()
+        self.update()
+
+    def apply_gradient(self, start: QPointF, end: QPointF):
+        if self.image is None:
+            return
+        a = self.brush_color
+        b = self.gradient_color
+        alpha = max(1, int(round(self.brush_opacity * 255)))
+        band = adjust.linear_gradient(
+            (self.image.height(), self.image.width()),
+            (start.x(), start.y()), (end.x(), end.y()),
+            (a.red(), a.green(), a.blue(), alpha),
+            (b.red(), b.green(), b.blue(), alpha))
+        self.push_undo()
+        painter = QPainter(self.image)
+        self._clip_to_selection(painter)
+        painter.drawImage(0, 0, numpy_to_qimage(band))
+        painter.end()
+        self.imageChanged.emit()
+        self.update()
+
+    def set_preview(self, image: np.ndarray | None):
+        self.preview = None if image is None else numpy_to_qimage(image)
+        self.update()
+
+    def commit_preview(self, image: np.ndarray):
+        if self.image is None:
+            return
+        self.push_undo()
+        self.image = numpy_to_qimage(image)
+        self.preview = None
+        self.imageChanged.emit()
+        self.update()
+
+    def set_compare(self, image: np.ndarray | None):
+        self.compare = None if image is None else numpy_to_qimage(image)
+        self.update()
+
+    def viewport_rect(self) -> QRectF:
+        if self.image is None:
+            return QRectF()
+        top_left = self.widget_to_image(QPointF(0, 0))
+        bottom_right = self.widget_to_image(QPointF(self.width(), self.height()))
+        return QRectF(top_left, bottom_right)
+
+    def center_on(self, img_pt: QPointF):
+        if self.image is None:
+            return
+        self.offset = QPointF(self.width() / 2 - img_pt.x() * self.zoom,
+                              self.height() / 2 - img_pt.y() * self.zoom)
+        self.viewportChanged.emit()
         self.update()
 
     def _text_hit(self, img_pt) -> bool:
@@ -687,9 +823,13 @@ class Canvas(QWidget):
                                         48, QColor(self.brush_color)))
             return
 
+        if self.tool == TOOL_FILL:
+            self.fill_at(img_pt)
+            return
+
         if self.tool in (TOOL_BRUSH, TOOL_ERASER):
             self._begin_stroke(img_pt)
-        elif self.tool in (TOOL_RECT, TOOL_ELLIPSE, TOOL_LINE):
+        elif self.tool in DRAG_TOOLS:
             self._drag_start = img_pt
             self._drag_now = img_pt
         self.update()
@@ -706,6 +846,7 @@ class Canvas(QWidget):
             delta = ev.position().toPoint() - self._pan_anchor
             self._pan_anchor = ev.position().toPoint()
             self.offset += QPointF(delta)
+            self.viewportChanged.emit()
             self.update()
             return
 
@@ -847,7 +988,24 @@ class Canvas(QWidget):
 
         # عند التكبير نستخدم أقرب جار حتى تبقى حواف التكسل حادة
         p.setRenderHint(QPainter.SmoothPixmapTransform, self.zoom < 1.0)
-        p.drawImage(target, self.image)
+        shown = self.preview if self.preview is not None else self.image
+        p.drawImage(target, shown)
+
+        # مقارنة قبل/بعد: النصف الواقع خلف المقسّم يعرض النسخة الأصلية
+        if self.compare is not None:
+            split = max(0.0, min(1.0, self.compare_split))
+            edge = target.left() + target.width() * split
+            before = QRectF(target.left(), target.top(),
+                            max(0.0, edge - target.left()), target.height())
+            if before.width() > 0:
+                source = QRectF(0, 0, self.compare.width() * split,
+                                self.compare.height())
+                p.drawImage(before, self.compare, source)
+                pen = QPen(QColor(theme.ACCENT))
+                pen.setWidth(2)
+                p.setPen(pen)
+                p.drawLine(QPointF(edge, target.top()),
+                           QPointF(edge, target.bottom()))
 
         if self._stroke is not None:
             p.setOpacity(self.brush_opacity)
@@ -877,6 +1035,16 @@ class Canvas(QWidget):
                 p.drawRect(rect)
             elif self.tool == TOOL_ELLIPSE:
                 p.drawEllipse(rect)
+            elif self.tool == TOOL_SELECT:
+                pen = QPen(QColor(255, 255, 255, 220), max(1.0, 1.0 / self.zoom),
+                           Qt.DashLine)
+                p.setPen(pen)
+                p.setBrush(Qt.NoBrush)
+                p.drawRect(rect)
+            elif self.tool == TOOL_GRADIENT:
+                pen = QPen(QColor(255, 255, 255, 220), max(1.0, 2.0 / self.zoom))
+                p.setPen(pen)
+                p.drawLine(self._drag_start, self._drag_now)
             else:
                 p.drawLine(self._drag_start, self._drag_now)
 
@@ -931,6 +1099,36 @@ class Canvas(QWidget):
             ring.setColor(QColor(0, 0, 0, 130))
             p.setPen(ring)
             p.drawEllipse(self._hover, radius + 1, radius + 1)
+
+        # شبكة محاذاة فوق التكستشر
+        if self.show_grid and self.grid_size > 0 and self.zoom * self.grid_size > 6:
+            pen = QPen(QColor(255, 255, 255, 40))
+            pen.setWidth(1)
+            p.setPen(pen)
+            step = self.grid_size * self.zoom
+            x = target.left()
+            while x <= target.right():
+                p.drawLine(QPointF(x, target.top()), QPointF(x, target.bottom()))
+                x += step
+            y = target.top()
+            while y <= target.bottom():
+                p.drawLine(QPointF(target.left(), y), QPointF(target.right(), y))
+                y += step
+
+        # مستطيل التحديد: خط متقطّع مزدوج يبقى واضحًا على أي خلفية
+        if self.selection is not None and not self.selection.isEmpty():
+            tl = self.image_to_widget(QPointF(self.selection.left(),
+                                              self.selection.top()))
+            br = self.image_to_widget(QPointF(self.selection.right() + 1,
+                                              self.selection.bottom() + 1))
+            box = QRectF(tl, br)
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(QColor(0, 0, 0, 180), 1, Qt.SolidLine))
+            p.drawRect(box)
+            pen = QPen(QColor(255, 255, 255, 230), 1, Qt.DashLine)
+            pen.setDashPattern([4, 4])
+            p.setPen(pen)
+            p.drawRect(box)
 
         # إطار رفيع حول التكستشر
         p.setPen(QPen(QColor(theme.BORDER_HI)))

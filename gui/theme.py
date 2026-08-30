@@ -13,6 +13,14 @@ import sys
 
 from PySide6.QtGui import QColor, QFont, QFontDatabase
 
+# ---------------------------------------------------------------- الهوية
+
+APP_NAME = "Wun Studio"
+APP_TAGLINE = "محرّر تكستشرات GTA V و FiveM"
+AUTHOR = "Athlawi"
+VERSION = "1.0"
+COPYRIGHT = "© 2026 Athlawi"
+
 # ---------------------------------------------------------------- الألوان
 
 BG_APP = "#0D0E12"          # خلفية النافذة الخارجية
@@ -291,6 +299,32 @@ QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
 QScrollBar::handle:hover { background: @TXT_MUTE; }
 QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
 QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+
+/* ---------- تبويبات الملفات ---------- */
+
+#FileTabs::tab {
+    background: @BG_PANEL;
+    border: 1px solid @BORDER;
+    border-radius: @R_CTRL;
+    padding: 7px 12px;
+    margin-left: 4px;
+    color: @TXT_DIM;
+    min-width: 90px;
+}
+#FileTabs::tab:hover    { background: @BG_HOVER; color: @TXT; }
+#FileTabs::tab:selected { background: @BG_ELEV; border-color: @ACCENT;
+                          color: @TXT; }
+#FileTabs::close-button { subcontrol-position: left; margin-right: 4px; }
+#FileTabs QToolButton {
+    background: @BG_ELEV; border: 1px solid @BORDER; border-radius: 5px;
+}
+
+/* ---------- المقسّمات ---------- */
+
+QSplitter::handle           { background: transparent; }
+QSplitter::handle:horizontal { width: 9px; }
+QSplitter::handle:vertical   { height: 9px; }
+QSplitter::handle:hover      { background: @ACCENT_DEEP; border-radius: 4px; }
 
 /* ---------- الحوارات ---------- */
 

@@ -90,7 +90,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="YTD Texture Editor",
+    name="Wun Studio",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

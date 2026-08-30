@@ -25,6 +25,7 @@ class TitleBar(QWidget):
     minimizeRequested = Signal()
     maximizeRequested = Signal()
     closeRequested = Signal()
+    aboutRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -40,7 +41,7 @@ class TitleBar(QWidget):
         row.addWidget(mark)
 
         # اسم المنتج يبقى بالإنجليزية كما هو، والواجهة حوله عربية
-        title = QLabel("YTD Texture Editor")
+        title = QLabel(theme.APP_NAME)
         title.setFont(theme.font(10, medium=True))
         title.setLayoutDirection(Qt.LeftToRight)
         row.addWidget(title)
@@ -60,6 +61,10 @@ class TitleBar(QWidget):
         row.addWidget(self.dirty_dot)
 
         row.addStretch(1)
+
+        self.btn_about = IconButton("info", "عن البرنامج", 34, 16)
+        self.btn_about.clicked.connect(self.aboutRequested)
+        row.addWidget(self.btn_about)
 
         self.btn_min = IconButton("minimize", "تصغير", 34, 16)
         self.btn_max = IconButton("maximize", "تكبير", 34, 15)
@@ -121,6 +126,7 @@ class FramelessWindow(QWidget):
         self.title_bar.minimizeRequested.connect(self.showMinimized)
         self.title_bar.maximizeRequested.connect(self.toggle_maximized)
         self.title_bar.closeRequested.connect(self.close)
+        self.title_bar.aboutRequested.connect(self.show_about)
         inner.addWidget(self.title_bar)
 
         self.body = QWidget()
@@ -131,6 +137,9 @@ class FramelessWindow(QWidget):
         self._resize_edges = ""
         self._resize_origin = QRect()
         self._press_global = QPoint()
+
+    def show_about(self):
+        pass
 
     # ------------------------------------------------------------- التكبير
 

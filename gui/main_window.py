@@ -10,25 +10,28 @@ from __future__ import annotations
 import os
 import traceback
 
-from PySide6.QtCore import QPointF, QRect, Qt
-from PySide6.QtGui import QColor, QKeySequence, QShortcut
+from PySide6.QtCore import QPointF, QRect, QRectF, Qt
+from PySide6.QtGui import QColor, QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog,
                                QDialogButtonBox, QFileDialog, QFormLayout,
                                QHBoxLayout, QLabel, QMessageBox,
-                               QProgressDialog, QVBoxLayout, QWidget)
+                               QProgressDialog, QSplitter, QVBoxLayout,
+                               QWidget)
 
+from ..core import adjust
 from ..core import export_handler as exporter
 from ..core.export_handler import ExportError
 from ..core.ytd_handler import YtdError, YtdFile
 from . import canvas as cv
-from . import theme
-from .canvas import Canvas
-from .file_list import FilePanel
+from . import icons, theme
+from .canvas import Canvas, numpy_to_qimage, qimage_to_numpy
+from .navigator import Navigator
 from .properties import PropertiesPanel, _button
 from .shell import FramelessWindow
+from .tabs import FileTabs
 from .texture_list import TexturePanel
 from .tool_rail import ToolRail
-from .widgets import Divider, EmptyState, SpinBox
+from .widgets import Divider, EmptyState, IconButton, SpinBox
 
 IMAGE_FILTER = ("الصور (*.png *.jpg *.jpeg *.bmp *.tga *.dds *.webp);;"
                 "كل الملفات (*)")
@@ -153,6 +156,8 @@ class MainWindow(FramelessWindow):
         self.doc_index: int | None = None
         self.current = None                 # TextureEntry
         self._dirty = False                 # الكانفس الحالي فيه تعديل غير مخزّن
+        self._pristine = None               # نسخة «قبل» للمقارنة والتعديل اللوني
+        self._adjust_base = None            # الصورة قبل التعديلات اللونية
 
         self._build_ui()
         self._connect()
@@ -194,35 +199,69 @@ class MainWindow(FramelessWindow):
 
         root.addWidget(self._build_command_bar())
 
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(9)
-
-        side = QVBoxLayout()
-        side.setContentsMargins(0, 0, 0, 0)
-        side.setSpacing(9)
-        self.files = FilePanel()
+        self.files = FileTabs()
         self.files.hide()                   # تظهر عند فتح أكثر من ملف
+        root.addWidget(self.files)
+
+        # المقسّم يسمح للمستخدم بتوسيع الكانفس على حساب اللوحات، وهو ما
+        # يحتاجه فعلًا عند العمل على تكستشر بحجم 3072×3072
+        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setHandleWidth(9)
+
         self.textures = TexturePanel()
-        side.addWidget(self.files)
-        side.addWidget(self.textures, 1)
+        self.textures.setMinimumWidth(230)
+        self.splitter.addWidget(self.textures)
 
-        side_host = QWidget()
-        side_host.setLayout(side)
-        side_host.setFixedWidth(296)
-        row.addWidget(side_host)
-
+        centre = QWidget()
+        centre_row = QHBoxLayout(centre)
+        centre_row.setContentsMargins(0, 0, 0, 0)
+        centre_row.setSpacing(9)
         self.rail = ToolRail()
-        row.addWidget(self.rail)
+        centre_row.addWidget(self.rail)
+        centre_row.addWidget(self._build_canvas_host(), 1)
+        centre.setMinimumWidth(360)
+        self.splitter.addWidget(centre)
 
-        row.addWidget(self._build_canvas_host(), 1)
-
+        right = QWidget()
+        right_column = QVBoxLayout(right)
+        right_column.setContentsMargins(0, 0, 0, 0)
+        right_column.setSpacing(9)
         self.properties = PropertiesPanel()
-        self.properties.setFixedWidth(330)
-        row.addWidget(self.properties)
+        right_column.addWidget(self.properties, 1)
+        right_column.addWidget(self._build_navigator_panel())
+        right.setMinimumWidth(300)
+        self.splitter.addWidget(right)
 
-        root.addLayout(row, 1)
+        self.splitter.setStretchFactor(0, 0)
+        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setStretchFactor(2, 0)
+        self.splitter.setSizes([296, 800, 340])
+
+        root.addWidget(self.splitter, 1)
         root.addWidget(self._build_status_bar())
+
+    def _build_navigator_panel(self):
+        panel = QWidget()
+        panel.setObjectName("Panel")
+        column = QVBoxLayout(panel)
+        column.setContentsMargins(10, 10, 10, 10)
+        column.setSpacing(7)
+
+        head = QHBoxLayout()
+        head.setSpacing(7)
+        glyph = QLabel()
+        glyph.setPixmap(icons.pixmap("navigator", 15, theme.TXT_DIM))
+        title = QLabel("الملاحة")
+        title.setObjectName("PanelTitle")
+        head.addWidget(glyph)
+        head.addWidget(title)
+        head.addStretch(1)
+        column.addLayout(head)
+
+        self.navigator = Navigator()
+        column.addWidget(self.navigator)
+        return panel
 
     def _build_command_bar(self):
         bar = QWidget()
@@ -299,16 +338,25 @@ class MainWindow(FramelessWindow):
 
         self.st_state = QLabel("جاهز")
         self.st_state.setObjectName("Hint")
+        self.st_selection = QLabel("")
+        self.st_selection.setObjectName("Hint")
         self.st_cursor = QLabel("—")
         self.st_cursor.setObjectName("Hint")
         self.st_zoom = QLabel("100%")
         self.st_zoom.setObjectName("Hint")
 
+        mark = QLabel("%s · %s" % (theme.AUTHOR, theme.VERSION))
+        mark.setObjectName("Hint")
+        mark.setToolTip("%s — %s" % (theme.APP_NAME, theme.COPYRIGHT))
+
         row.addWidget(self.st_state)
         row.addStretch(1)
+        row.addWidget(self.st_selection)
         row.addWidget(self.st_cursor)
         row.addWidget(Divider(vertical=True))
         row.addWidget(self.st_zoom)
+        row.addWidget(Divider(vertical=True))
+        row.addWidget(mark)
         return bar
 
     # -------------------------------------------------------------- الربط
@@ -328,7 +376,9 @@ class MainWindow(FramelessWindow):
         self.rail.actualSizeRequested.connect(self.canvas.reset_zoom)
 
         self.files.fileSelected.connect(self.select_file)
+        self.files.closeFileRequested.connect(self.close_file)
         self.textures.textureSelected.connect(self.select_texture)
+        self.navigator.centerRequested.connect(self.canvas.center_on)
 
         c = self.canvas
         c.zoomChanged.connect(
@@ -341,6 +391,8 @@ class MainWindow(FramelessWindow):
         c.imageItemChanged.connect(self.properties.load_image_item)
         c.imageItemMoved.connect(self.properties.load_image_item)
         c.colorPicked.connect(self.properties.color_swatch.setColor)
+        c.viewportChanged.connect(self._sync_navigator)
+        c.selectionChanged.connect(self._on_selection)
 
         p = self.properties
         p.brushSizeChanged.connect(lambda v: setattr(c, "brush_size", v))
@@ -372,6 +424,27 @@ class MainWindow(FramelessWindow):
         p.exportPngRequested.connect(self._export_png)
         p.exportDdsRequested.connect(self._export_dds)
 
+        p.fillToleranceChanged.connect(
+            lambda v: setattr(c, "fill_tolerance", v))
+        p.gradientColorChanged.connect(
+            lambda col: setattr(c, "gradient_color", col))
+        p.selectAllRequested.connect(c.select_all)
+        p.clearSelectionRequested.connect(c.clear_selection)
+        p.cropToSelectionRequested.connect(self._crop_to_selection)
+
+        p.adjustPreviewRequested.connect(self._adjust_preview)
+        p.adjustApplyRequested.connect(self._adjust_apply)
+        p.adjustResetRequested.connect(self._adjust_reset)
+
+        p.gridToggled.connect(self._on_grid)
+        p.gridSizeChanged.connect(self._on_grid_size)
+        p.compareToggled.connect(self._on_compare)
+        p.compareSplitChanged.connect(self._on_compare_split)
+
+        p.batchStampRequested.connect(self._batch_stamp)
+        p.batchExportRequested.connect(self._batch_export)
+        p.batchImportRequested.connect(self._batch_import)
+
     def _install_shortcuts(self):
         binds = [
             ("Ctrl+O", self.open_files),
@@ -390,6 +463,9 @@ class MainWindow(FramelessWindow):
             ("Ctrl+F", self.textures.search.setFocus),
             ("Ctrl+Tab", lambda: self._cycle_file(1)),
             ("Ctrl+Shift+Tab", lambda: self._cycle_file(-1)),
+            ("Ctrl+A", lambda: self.canvas.select_all()),
+            ("Ctrl+D", lambda: self.canvas.clear_selection()),
+            ("Ctrl+W", lambda: self.close_file(self.doc_index)),
         ]
         for key, slot in binds:
             QShortcut(QKeySequence(key), self, activated=slot)
@@ -421,6 +497,10 @@ class MainWindow(FramelessWindow):
         self.btn_redo.setEnabled(can_redo)
 
     def _on_image_changed(self):
+        self._adjust_base = None
+        image = self.canvas.to_numpy()
+        if image is not None:
+            self.navigator.set_image(image)
         if self.current is None:
             return
         if not self._dirty:
@@ -554,7 +634,9 @@ class MainWindow(FramelessWindow):
     def _cycle_file(self, step):
         if len(self.docs) < 2 or self.doc_index is None:
             return
-        self.files.select((self.doc_index + step) % len(self.docs))
+        # ننادي select_file مباشرة: files.select تكتم إشارتها عمدًا لأنها
+        # تُستخدم لمزامنة التبويب بعد التنقل لا لبدء التنقل
+        self.select_file((self.doc_index + step) % len(self.docs))
 
     def _ensure_loaded(self, doc: Document) -> bool:
         """قراءة الملف عند أول اختيار له. يرجع False إن تعذّرت قراءته."""
@@ -682,7 +764,15 @@ class MainWindow(FramelessWindow):
 
         self.current = entry
         self._dirty = entry.index in doc.edits
+        self._pristine = doc.originals.get(entry.index)
+        self._adjust_base = None
         self.canvas.load_numpy(image)
+        self.properties.reset_adjust()
+        self.canvas.set_preview(None)
+        self.canvas.clear_selection()
+        self._refresh_compare()
+        self.navigator.set_image(image)
+        self._sync_navigator()
         self._refresh_status()
         self._update_actions()
         self._status("%s — %s" % (entry.name, entry.format_name))
@@ -1036,6 +1126,366 @@ class MainWindow(FramelessWindow):
         if doc in self.docs:
             self.files.refresh(self.docs.index(doc), doc)
         self._update_actions()
+
+
+    # ------------------------------------------------------- الملاحة والعرض
+
+    def _sync_navigator(self):
+        self.navigator.set_viewport(self.canvas.viewport_rect())
+
+    def _on_selection(self, rect):
+        self.properties.set_selection_text(rect)
+        self.st_selection.setText(
+            "" if rect is None else "تحديد %d×%d" % (rect.width(), rect.height()))
+
+    def _crop_to_selection(self):
+        rect = self.canvas.selection
+        if rect is None or rect.isEmpty():
+            show_info(self, "لا يوجد تحديد",
+                      "حدّد منطقة بأداة التحديد أولًا، ثم أعد المحاولة.")
+            return
+        self.canvas.crop_to(rect, keep_size=True)
+        self.canvas.clear_selection()
+        self._refresh_status()
+
+    def _on_grid(self, enabled):
+        self.canvas.show_grid = bool(enabled)
+        self.canvas.update()
+
+    def _on_grid_size(self, value):
+        self.canvas.grid_size = int(value)
+        self.canvas.update()
+
+    def _on_compare(self, enabled):
+        self._refresh_compare(bool(enabled))
+
+    def _on_compare_split(self, value):
+        self.canvas.compare_split = value / 100.0
+        self.canvas.update()
+
+    def _refresh_compare(self, enabled=None):
+        if enabled is None:
+            enabled = self.properties.compare_check.isChecked()
+        self.canvas.set_compare(self._pristine if enabled else None)
+
+    # ------------------------------------------------------ التعديلات اللونية
+
+    def _adjust_preview(self):
+        if not self.canvas.has_image():
+            return
+        params = self.properties.adjust_params()
+        if adjust.is_neutral(params):
+            self.canvas.set_preview(None)
+            return
+        if self._adjust_base is None:
+            self._adjust_base = self.canvas.to_numpy()
+        # المعاينة على نسخة مصغّرة: على 3072×3072 الفرق بين ٦٠٠ جزء من الثانية
+        # وسبعين، وهو ما يجعل المنزلقات تستجيب فورًا
+        small, _step = adjust.proxy(self._adjust_base, 1024)
+        self.canvas.set_preview(adjust.apply(small, params))
+
+    def _adjust_apply(self):
+        if not self.canvas.has_image():
+            return
+        params = self.properties.adjust_params()
+        if adjust.is_neutral(params):
+            show_info(self, "لا يوجد تعديل", "حرّك أحد المنزلقات أولًا.")
+            return
+        base = self._adjust_base
+        if base is None:
+            base = self.canvas.to_numpy()
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            self.canvas.commit_preview(adjust.apply(base, params))
+        finally:
+            QApplication.restoreOverrideCursor()
+        self._adjust_base = None
+        self.properties.reset_adjust()
+        self._status("طُبّقت التعديلات اللونية")
+
+    def _adjust_reset(self):
+        self.properties.reset_adjust()
+        self._adjust_base = None
+        self.canvas.set_preview(None)
+
+    # -------------------------------------------------------- إغلاق وتعريف
+
+    def close_file(self, index):
+        if index is None or not (0 <= index < len(self.docs)):
+            return
+        doc = self.docs[index]
+        if doc.dirty and not ask(
+                self, "إغلاق ملف معدَّل",
+                "«%s» فيه تعديلات لم تُحفظ. هل تغلقه وتفقدها؟" % doc.name,
+                "أغلق دون حفظ", warning=True):
+            return
+
+        self.docs.pop(index)
+        if not self.docs:
+            self.doc_index = None
+            self.current = None
+            self._dirty = False
+            self.canvas.clear_document()
+            self.textures.clear()
+            self.navigator.set_image(None)
+            self.files.populate([])
+            self.files.hide()
+            self.title_bar.set_file(None)
+            self._update_actions()
+            self._refresh_status()
+            self._status("أُغلقت كل الملفات")
+            return
+
+        self.files.populate(self.docs)
+        self.files.setVisible(len(self.docs) > 1)
+        self.doc_index = None
+        self.select_file(min(index, len(self.docs) - 1))
+
+    def show_about(self):
+        box = QMessageBox(self)
+        box.setIconPixmap(icons.pixmap("layers", 56, theme.ACCENT, 1.5))
+        box.setWindowTitle("عن البرنامج")
+        box.setText("<b>%s</b> — الإصدار %s" % (theme.APP_NAME, theme.VERSION))
+        box.setInformativeText(
+            "%s<br><br>تطوير: <b>%s</b><br>%s"
+            % (theme.APP_TAGLINE, theme.AUTHOR, theme.COPYRIGHT))
+        box.addButton("حسنًا", QMessageBox.AcceptRole)
+        box.exec()
+
+    # ------------------------------------------------------ المعالجة الدفعية
+
+    def _editable_textures(self, doc):
+        if not self._ensure_loaded(doc):
+            return []
+        return [t for t in doc.ytd.textures if t.editable]
+
+    def _texture_image(self, doc, entry):
+        cached = doc.edits.get(entry.index)
+        if cached is not None:
+            return cached
+        return doc.ytd.decode(entry)
+
+    @staticmethod
+    def _composite(base, stamp, rel, opacity):
+        image = numpy_to_qimage(base)
+        h, w = base.shape[:2]
+        rect = QRectF(rel[0] * w, rel[1] * h, rel[2] * w, rel[3] * h)
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+        painter.setOpacity(opacity)
+        painter.drawImage(rect, numpy_to_qimage(stamp))
+        painter.end()
+        return qimage_to_numpy(image)
+
+    def _stamp_source(self):
+        """الصورة وموضعها النسبي: من الطبقة العائمة إن وُجدت، وإلا من ملف."""
+        item = self.canvas.image_item
+        if item is not None and self.canvas.image is not None:
+            w = float(self.canvas.image.width())
+            h = float(self.canvas.image.height())
+            rel = (item.pos.x() / w, item.pos.y() / h,
+                   item.width / w, item.height / h)
+            return qimage_to_numpy(item.image), rel, item.opacity, True
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "اختر صورة الختم", "", IMAGE_FILTER)
+        if not path:
+            return None, None, None, False
+        try:
+            arr = exporter.load_image(path)
+        except ExportError as exc:
+            show_error(self, "تعذّر تحميل الصورة", str(exc))
+            return None, None, None, False
+        ratio = arr.shape[0] / max(1, arr.shape[1])
+        width = 0.25
+        height = width * ratio
+        rel = ((1 - width) / 2, (1 - height) / 2, width, height)
+        return arr, rel, 1.0, False
+
+    def _batch_stamp(self):
+        if not self.docs:
+            return
+        stamp, rel, opacity, from_canvas = self._stamp_source()
+        if stamp is None:
+            return
+
+        targets = []
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            for doc in self.docs:
+                for entry in self._editable_textures(doc):
+                    targets.append((doc, entry))
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        if not targets:
+            show_info(self, "لا يوجد هدف", "لا توجد تكستشرات قابلة للتحرير.")
+            return
+
+        source = ("الصورة الموضوعة على الكانفس" if from_canvas
+                  else "الصورة المختارة")
+        if not ask(self, "ختم دفعي",
+                   "سيُلصق %s على %d تكستشر داخل %d ملف، بنفس الموضع النسبي.\n\n"
+                   "لن يُكتب أي ملف على القرص قبل أن تضغط «حفظ الكل»، فتقدر "
+                   "تراجع النتيجة أولًا.\n\nهل تتابع؟"
+                   % (source, len(targets), len(self.docs)), "اختم"):
+            return
+
+        progress = QProgressDialog("جاري الختم…", None, 0, len(targets), self)
+        progress.setWindowTitle("ختم دفعي")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+
+        done, failed = 0, []
+        for i, (doc, entry) in enumerate(targets):
+            progress.setValue(i)
+            progress.setLabelText("%s · %s" % (doc.name, entry.name))
+            QApplication.processEvents()
+            try:
+                base = self._texture_image(doc, entry)
+                doc.edits[entry.index] = self._composite(base, stamp, rel,
+                                                         opacity)
+                done += 1
+            except Exception as exc:
+                failed.append("%s · %s: %s" % (doc.name, entry.name, exc))
+        progress.close()
+
+        if from_canvas:
+            self.canvas.cancel_image_item()
+        self._reload_after_batch()
+        show_info(self, "تمّ الختم",
+                  "خُتم %d تكستشر في %d ملف." % (done, len(self.docs)),
+                  "\n".join(failed) if failed else None)
+        self._status("خُتم %d تكستشر" % done)
+
+    def _batch_export(self):
+        if not self.docs:
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self, "اختر مجلدًا لتصدير كل التكستشرات")
+        if not folder:
+            return
+
+        pairs = []
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            for doc in self.docs:
+                for entry in self._editable_textures(doc):
+                    pairs.append((doc, entry))
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        progress = QProgressDialog("جاري التصدير…", None, 0, len(pairs), self)
+        progress.setWindowTitle("تصدير دفعي")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+
+        written, failed = 0, []
+        for i, (doc, entry) in enumerate(pairs):
+            progress.setValue(i)
+            progress.setLabelText("%s · %s" % (doc.name, entry.name))
+            QApplication.processEvents()
+            sub = os.path.join(folder, os.path.splitext(doc.name)[0])
+            try:
+                os.makedirs(sub, exist_ok=True)
+                exporter.export_png(self._texture_image(doc, entry),
+                                    os.path.join(sub, entry.name + ".png"))
+                written += 1
+            except Exception as exc:
+                failed.append("%s · %s: %s" % (doc.name, entry.name, exc))
+        progress.close()
+
+        show_info(self, "تمّ التصدير",
+                  "صُدِّر %d تكستشر إلى:\n%s" % (written, folder),
+                  "\n".join(failed) if failed else None)
+        self._status("صُدِّر %d تكستشر" % written)
+
+    def _batch_import(self):
+        if not self.docs:
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self, "اختر مجلد الصور المطابقة لأسماء التكستشرات")
+        if not folder:
+            return
+
+        images = {}
+        for root, _dirs, names in os.walk(folder):
+            for name in names:
+                stem, ext = os.path.splitext(name)
+                if ext.lower() in (".png", ".jpg", ".jpeg", ".bmp", ".tga",
+                                   ".webp"):
+                    images.setdefault(stem, os.path.join(root, name))
+        if not images:
+            show_info(self, "لا توجد صور",
+                      "لم يُعثر على أي صورة داخل:\n\n%s" % folder)
+            return
+
+        matches = []
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            for doc in self.docs:
+                for entry in self._editable_textures(doc):
+                    if entry.name in images:
+                        matches.append((doc, entry, images[entry.name]))
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        if not matches:
+            show_info(self, "لا يوجد تطابق",
+                      "وُجدت %d صورة لكن لا يطابق اسمها أي تكستشر مفتوح.\n\n"
+                      "اسم الملف يجب أن يطابق اسم التكستشر تمامًا بلا امتداد."
+                      % len(images))
+            return
+
+        if not ask(self, "استيراد دفعي",
+                   "سيُستبدل %d تكستشر بصور مطابقة الاسم، وكل صورة ستُمدّد إلى "
+                   "أبعاد التكستشر الأصلية.\n\nلن يُكتب أي ملف قبل «حفظ الكل». "
+                   "هل تتابع؟" % len(matches), "استورد"):
+            return
+
+        progress = QProgressDialog("جاري الاستيراد…", None, 0, len(matches),
+                                   self)
+        progress.setWindowTitle("استيراد دفعي")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+
+        done, failed = 0, []
+        for i, (doc, entry, path) in enumerate(matches):
+            progress.setValue(i)
+            progress.setLabelText("%s · %s" % (doc.name, entry.name))
+            QApplication.processEvents()
+            try:
+                arr = exporter.load_image(path)
+                image = numpy_to_qimage(arr).scaled(
+                    entry.width, entry.height, Qt.IgnoreAspectRatio,
+                    Qt.SmoothTransformation)
+                doc.edits[entry.index] = qimage_to_numpy(image)
+                done += 1
+            except Exception as exc:
+                failed.append("%s · %s: %s" % (doc.name, entry.name, exc))
+        progress.close()
+
+        self._reload_after_batch()
+        show_info(self, "تمّ الاستيراد",
+                  "استُبدل %d تكستشر." % done,
+                  "\n".join(failed) if failed else None)
+        self._status("استُورد %d تكستشر" % done)
+
+    def _reload_after_batch(self):
+        """تحديث الواجهة بعد عملية دفعية غيّرت تعديلات عدة ملفات."""
+        for index, doc in enumerate(self.docs):
+            self.files.refresh(index, doc)
+        doc = self.doc
+        if doc is not None:
+            for texture_index, image in doc.edits.items():
+                self.textures.mark_edited(texture_index, True)
+                self.textures.update_thumbnail(texture_index, image)
+            if self.current is not None and self.current.index in doc.edits:
+                self._dirty = True
+                self.canvas.load_numpy(doc.edits[self.current.index])
+                self.navigator.set_image(doc.edits[self.current.index])
+        self._update_actions()
+        self._refresh_status()
 
     # -------------------------------------------------------------- الإغلاق
 

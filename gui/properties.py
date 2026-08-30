@@ -66,6 +66,29 @@ class PropertiesPanel(QWidget):
     revertRequested = Signal()
     importTextureRequested = Signal()
 
+    # الأدوات الجديدة
+    fillToleranceChanged = Signal(int)
+    gradientColorChanged = Signal(QColor)
+    selectAllRequested = Signal()
+    clearSelectionRequested = Signal()
+    cropToSelectionRequested = Signal()
+
+    # التعديلات اللونية
+    adjustPreviewRequested = Signal()
+    adjustApplyRequested = Signal()
+    adjustResetRequested = Signal()
+
+    # العرض
+    gridToggled = Signal(bool)
+    gridSizeChanged = Signal(int)
+    compareToggled = Signal(bool)
+    compareSplitChanged = Signal(int)
+
+    # المعالجة الدفعية
+    batchStampRequested = Signal()
+    batchExportRequested = Signal()
+    batchImportRequested = Signal()
+
     # التصدير
     exportPngRequested = Signal()
     exportDdsRequested = Signal()
@@ -103,6 +126,12 @@ class PropertiesPanel(QWidget):
         scroll.setWidget(host)
 
         self._column.addWidget(self._build_brush())
+        self._column.addWidget(Divider())
+        self._column.addWidget(self._build_adjust())
+        self._column.addWidget(Divider())
+        self._column.addWidget(self._build_selection_view())
+        self._column.addWidget(Divider())
+        self._column.addWidget(self._build_batch())
         self._column.addWidget(Divider())
         self._column.addWidget(self._build_text())
         self._column.addWidget(Divider())
@@ -142,6 +171,158 @@ class PropertiesPanel(QWidget):
         self.filled = QCheckBox("أشكال معبّأة")
         self.filled.toggled.connect(self.shapeFilledChanged)
         section.add(self.filled)
+
+        section.add(Divider())
+
+        self.tolerance = SliderField("تسامح الدلو", 0, 128, 32)
+        self.tolerance.valueChanged.connect(self.fillToleranceChanged)
+        section.add(self.tolerance)
+
+        self.gradient_swatch = ColorSwatch(QColor("#000000"))
+        self.gradient_swatch.colorChanged.connect(self.gradientColorChanged)
+        section.add(Field("نهاية التدرّج", self.gradient_swatch))
+
+        hint = QLabel("الدلو يملأ المنطقة المتشابهة حول نقطة النقر، والتدرّج "
+                      "يُرسم من اللون الأساسي إلى لون النهاية باتجاه سحبك.")
+        hint.setObjectName("Hint")
+        hint.setWordWrap(True)
+        section.add(hint)
+        return section
+
+    # ---------------------------------------------------- التعديلات اللونية
+
+    def _build_adjust(self):
+        section = Section("التعديلات اللونية", "adjust", expanded=False)
+        self.adjust_section = section
+
+        self.adj_brightness = SliderField("السطوع", -100, 100, 0)
+        self.adj_contrast = SliderField("التباين", -100, 100, 0)
+        self.adj_saturation = SliderField("التشبّع", -100, 100, 0)
+        self.adj_hue = SliderField("الصبغة", -180, 180, 0, "°")
+        for widget in (self.adj_brightness, self.adj_contrast,
+                       self.adj_saturation, self.adj_hue):
+            widget.valueChanged.connect(
+                lambda _v: self.adjustPreviewRequested.emit())
+            section.add(widget)
+
+        row = QHBoxLayout()
+        self.adj_grayscale = QCheckBox("تدرّج رمادي")
+        self.adj_invert = QCheckBox("عكس الألوان")
+        for widget in (self.adj_grayscale, self.adj_invert):
+            widget.toggled.connect(
+                lambda _v: self.adjustPreviewRequested.emit())
+            row.addWidget(widget)
+        row.addStretch(1)
+        section.add_layout(row)
+
+        actions = QHBoxLayout()
+        self.adj_apply = _button("تطبيق", "check", "primary")
+        self.adj_apply.clicked.connect(self.adjustApplyRequested)
+        self.adj_reset = _button("تصفير", "revert")
+        self.adj_reset.clicked.connect(self.adjustResetRequested)
+        actions.addWidget(self.adj_apply, 2)
+        actions.addWidget(self.adj_reset, 1)
+        section.add_layout(actions)
+
+        note = QLabel("المعاينة فورية على نسخة مصغّرة، و«تطبيق» يعيد الحساب "
+                      "على الدقة الكاملة.")
+        note.setObjectName("Hint")
+        note.setWordWrap(True)
+        section.add(note)
+        return section
+
+    def adjust_params(self):
+        return {
+            "brightness": self.adj_brightness.value(),
+            "contrast": self.adj_contrast.value(),
+            "saturation": self.adj_saturation.value(),
+            "hue": self.adj_hue.value(),
+            "grayscale": self.adj_grayscale.isChecked(),
+            "invert": self.adj_invert.isChecked(),
+        }
+
+    def reset_adjust(self):
+        for widget in (self.adj_brightness, self.adj_contrast,
+                       self.adj_saturation, self.adj_hue):
+            widget.slider.blockSignals(True)
+            widget.setValue(0)
+            widget.slider.blockSignals(False)
+        for widget in (self.adj_grayscale, self.adj_invert):
+            widget.blockSignals(True)
+            widget.setChecked(False)
+            widget.blockSignals(False)
+
+    # ------------------------------------------------------- التحديد والعرض
+
+    def _build_selection_view(self):
+        section = Section("التحديد والعرض", "select", expanded=False)
+
+        row = QHBoxLayout()
+        select_all = _button("تحديد الكل", "select")
+        select_all.clicked.connect(self.selectAllRequested)
+        clear = _button("إلغاء التحديد", "close")
+        clear.clicked.connect(self.clearSelectionRequested)
+        row.addWidget(select_all)
+        row.addWidget(clear)
+        section.add_layout(row)
+
+        crop_selection = _button("قصّ على التحديد", "crop")
+        crop_selection.clicked.connect(self.cropToSelectionRequested)
+        section.add(crop_selection)
+
+        self.selection_label = QLabel("لا يوجد تحديد")
+        self.selection_label.setObjectName("Hint")
+        section.add(self.selection_label)
+
+        section.add(Divider())
+
+        self.grid_check = QCheckBox("إظهار شبكة المحاذاة")
+        self.grid_check.toggled.connect(self.gridToggled)
+        section.add(self.grid_check)
+
+        self.grid_size = SliderField("مقاس الشبكة", 8, 512, 64, " بكسل")
+        self.grid_size.valueChanged.connect(self.gridSizeChanged)
+        section.add(self.grid_size)
+
+        self.compare_check = QCheckBox("مقارنة قبل / بعد")
+        self.compare_check.toggled.connect(self.compareToggled)
+        section.add(self.compare_check)
+
+        self.compare_split = SliderField("موضع المقسّم", 0, 100, 50, "٪")
+        self.compare_split.valueChanged.connect(self.compareSplitChanged)
+        section.add(self.compare_split)
+        return section
+
+    def set_selection_text(self, rect):
+        if rect is None:
+            self.selection_label.setText("لا يوجد تحديد")
+        else:
+            self.selection_label.setText(
+                "التحديد: %d×%d عند س %d، ص %d"
+                % (rect.width(), rect.height(), rect.left(), rect.top()))
+
+    # ----------------------------------------------------- المعالجة الدفعية
+
+    def _build_batch(self):
+        section = Section("معالجة دفعية", "batch", expanded=False)
+
+        stamp = _button("ختم صورة على كل الملفات…", "image", "primary")
+        stamp.clicked.connect(self.batchStampRequested)
+        section.add(stamp)
+
+        export_all = _button("تصدير كل التكستشرات PNG…", "export")
+        export_all.clicked.connect(self.batchExportRequested)
+        section.add(export_all)
+
+        import_all = _button("استيراد مجلد PNG بمطابقة الأسماء…", "import")
+        import_all.clicked.connect(self.batchImportRequested)
+        section.add(import_all)
+
+        note = QLabel("الختم يلصق الصورة على كل الملفات المفتوحة بنفس الموضع "
+                      "النسبي، والاستيراد يستبدل كل تكستشر باسمه المطابق.")
+        note.setObjectName("Hint")
+        note.setWordWrap(True)
+        section.add(note)
         return section
 
     # ---------------------------------------------------------------- النص

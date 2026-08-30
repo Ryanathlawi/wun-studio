@@ -1,45 +1,3 @@
-"""
-YTD (texture dictionary) parsing and in-place patching.
-
---------------------------------------------------------------------------
-YTD-SPECIFIC LOGIC
---------------------------------------------------------------------------
-A .ytd is an RSC7 resource whose system segment starts with a
-`pgDictionary<grcTexture>`. Layout (64-bit, GTA V), verified against
-CodeWalker's TextureDictionary.cs:
-
-    TextureDictionary            (0x40 bytes, at system offset 0)
-      0x00  u32   FileVFT
-      0x04  u32   FileUnknown            (= 1)
-      0x08  u64   FilePagesInfoPointer
-      0x10  u32 x 4                      unknown / flags
-      0x20  u64   TextureNameHashes ptr  (u32 jenkins hashes, sorted)
-      0x28  u16   hash count, u16 capacity
-      0x30  u64   Textures ptr           (array of u64 texture pointers)
-      0x38  u16   texture count, u16 capacity
-
-    grcTexturePC                 (0x90 bytes)   [TextureBase is the first 0x50]
-      0x28  u64   NamePointer            -> ASCII texture name
-      0x50  u16   Width
-      0x52  u16   Height
-      0x54  u16   Depth
-      0x56  u16   Stride
-      0x58  u32   Format                 (D3DFORMAT code)
-      0x5D  u8    Levels                 (mip count)
-      0x60  u64   DataPointer            -> pixel data in the graphics segment
-
-We deliberately do NOT rebuild the dictionary when saving. Instead we patch
-pixel bytes directly inside the decompressed segments. That guarantees:
-
-  * every texture name, hash and pointer stays exactly as Rockstar wrote it
-  * untouched textures are preserved byte-for-byte
-  * the page/segment layout (and therefore the RSC7 header flags) stays valid
-
-The price is that an edited texture must re-encode to the same byte count,
-i.e. same dimensions, same format, same mip count. The editor enforces this.
---------------------------------------------------------------------------
-"""
-
 from __future__ import annotations
 
 import struct
@@ -49,7 +7,6 @@ import numpy as np
 from . import texture_handler as tex
 from .rsc7 import GRAPHICS_BASE, SYSTEM_BASE, Rsc7Error, Rsc7Resource
 
-# --- structure offsets ----------------------------------------------------
 
 DICT_HASHES_PTR = 0x20
 DICT_HASHES_COUNT = 0x28
@@ -63,9 +20,6 @@ TEX_DEPTH = 0x54
 TEX_STRIDE = 0x56
 TEX_FORMAT = 0x58
 TEX_LEVELS = 0x5D
-# The pixel-data pointer sits at 0x70 in the GTA V build (0x18 past Format).
-# Some tool-written dictionaries put it at 0x60 instead, so both are tried and
-# then, as a last resort, any graphics-segment pointer in the struct is used.
 TEX_DATA_PTR_CANDIDATES = (0x70, 0x60, 0x68, 0x78)
 TEX_STRUCT_SIZE = 0x90
 
@@ -73,16 +27,10 @@ MAX_TEXTURES = 8192
 
 
 class YtdError(Exception):
-    """Raised when a .ytd cannot be parsed or patched."""
+    pass
 
 
 class TextureEntry:
-    """
-    One texture inside the dictionary.
-
-    Holds both the parsed description and the physical locations needed to
-    patch it back into the resource.
-    """
 
     def __init__(self, index, name, width, height, depth, stride, fmt, levels,
                  struct_offset, data_pointer):
@@ -94,14 +42,12 @@ class TextureEntry:
         self.stride = stride
         self.format = fmt
         self.levels = levels
-        self.struct_offset = struct_offset      # offset in the system segment
-        self.data_pointer = data_pointer        # raw resource pointer
+        self.struct_offset = struct_offset
+        self.data_pointer = data_pointer
 
-        self.data_size = 0                      # computed mip-chain size
-        self.available = 0                      # bytes we may safely write
-        self.error = None                       # why this texture is unusable
-
-    # -- derived -----------------------------------------------------------
+        self.data_size = 0
+        self.available = 0
+        self.error = None
 
     @property
     def format_name(self):
@@ -117,33 +63,19 @@ class TextureEntry:
 
 
 def _looks_like_name(raw):
-    """A texture name is short printable ASCII."""
     if not raw:
         return False
     return all(32 <= ord(ch) < 127 for ch in raw)
 
 
 class YtdFile:
-    """
-    A loaded .ytd, ready for inspection and patching.
-
-    Typical use:
-        ytd = YtdFile.open("mytex.ytd")
-        img = ytd.decode(ytd.textures[0])       # -> (h, w, 4) uint8 RGBA
-        ytd.replace(ytd.textures[0], edited)    # re-encode + patch in place
-        ytd.save("mytex_edited.ytd")
-    """
 
     def __init__(self, resource: Rsc7Resource, path=None):
         self.res = resource
         self.path = path
         self.textures = []
-        # نسخة احتياطية من بايتات كل تكستشر قبل أول ترقيع له، مفتاحها الفهرس.
-        # لا تُملأ إلا عند التعديل الفعلي، فتبقى التكلفة بحجم ما عُدِّل فقط.
         self._pristine = {}
         self._parse()
-
-    # ---------------------------------------------------------------- load
 
     @classmethod
     def open(cls, path):
@@ -152,12 +84,8 @@ class YtdFile:
         except Rsc7Error as exc:
             raise YtdError(str(exc)) from exc
         if res.version not in (13, 0):
-            # Version 13 is the .ytd resource version; warn rather than fail,
-            # since some tools re-write the field.
             pass
         return cls(res, path)
-
-    # --------------------------------------------------------------- parse
 
     def _parse(self):
         res = self.res
@@ -242,25 +170,15 @@ class YtdFile:
         return entry
 
     def _find_data_pointer(self, off, base):
-        """
-        Locate a texture's pixel-data pointer.
-
-        `base` is the struct offset of the Format field; the data pointer lives
-        a fixed distance past it, but that distance differs slightly between
-        game builds, so the known candidates are probed first and a scan of the
-        struct's tail is used as a fallback.
-        """
         res = self.res
         for delta in TEX_DATA_PTR_CANDIDATES:
             cand = res.u64(off + delta)
             if (cand & 0xF0000000) == GRAPHICS_BASE:
                 return cand
-        # last resort: any qword in the struct that addresses graphics memory
         for pos in range(base + 8, TEX_STRUCT_SIZE - 8, 8):
             cand = res.u64(off + pos)
             if (cand & 0xF0000000) == GRAPHICS_BASE:
                 return cand
-        # very small textures are occasionally kept in the system segment
         for delta in TEX_DATA_PTR_CANDIDATES:
             cand = res.u64(off + delta)
             if (cand & 0xF0000000) == SYSTEM_BASE:
@@ -268,7 +186,6 @@ class YtdFile:
         return 0
 
     def _read_texture_fields(self, off):
-        """Read the canonical grcTexturePC layout and validate it."""
         res = self.res
         name_ptr = res.u64(off + TEX_NAME_PTR)
         w = res.u16(off + TEX_WIDTH)
@@ -291,18 +208,6 @@ class YtdFile:
         return name_ptr, w, h, d, stride, fmt, levels, data_ptr
 
     def _scan_texture_fields(self, off):
-        """
-        Fallback for unusual builds.
-
-        The absolute struct offsets can shift between game versions, but the
-        *relative* layout around the format field is stable:
-
-            format-8 = width, format-6 = height, format-4 = depth,
-            format-2 = stride, format+5 = levels, format+8 = data pointer
-
-        So we search the struct for a recognised format code and rebuild
-        everything relative to it, then look for the name pointer separately.
-        """
         res = self.res
         block = res.system[off:off + TEX_STRUCT_SIZE]
         for f in range(8, TEX_STRUCT_SIZE - 16, 4):
@@ -329,14 +234,6 @@ class YtdFile:
         return None
 
     def _compute_spans(self):
-        """
-        Work out how many bytes each texture may safely occupy.
-
-        Pixel blocks are laid out consecutively in the graphics segment, so a
-        texture's span ends where the next one begins. We never write past
-        that boundary, which makes a miscalculated mip chain fail loudly
-        instead of corrupting a neighbouring texture.
-        """
         res = self.res
         by_buffer = {}
         for entry in self.textures:
@@ -360,10 +257,7 @@ class YtdFile:
                         "reserved in the file (%d bytes). This texture will "
                         "not be modified." % (entry.data_size, entry.available))
 
-    # -------------------------------------------------------------- access
-
     def raw_data(self, entry):
-        """Raw bytes of a texture's full mip chain."""
         loc = self.res.resolve(entry.data_pointer)
         if loc is None:
             raise YtdError("Texture '%s' has an invalid data pointer." % entry.name)
@@ -371,7 +265,6 @@ class YtdFile:
         return bytes(buf[off:off + entry.data_size])
 
     def decode(self, entry):
-        """Decode a texture's top mip level to an (h, w, 4) uint8 RGBA array."""
         if entry.error:
             raise YtdError("Cannot open '%s':\n%s" % (entry.name, entry.error))
         try:
@@ -381,12 +274,6 @@ class YtdFile:
             raise YtdError("Failed to decode '%s':\n%s" % (entry.name, exc)) from exc
 
     def decode_level(self, entry, level):
-        """
-        Decode one specific mip level.
-
-        Levels are packed consecutively, so the offset of level N is the sum of
-        the sizes of levels 0..N-1.
-        """
         if entry.error:
             raise YtdError("Cannot open '%s':\n%s" % (entry.name, entry.error))
         level = max(0, min(level, entry.levels - 1))
@@ -407,12 +294,6 @@ class YtdFile:
             raise YtdError("Failed to decode '%s':\n%s" % (entry.name, exc)) from exc
 
     def thumbnail(self, entry, max_size=96):
-        """
-        Cheap preview: decode the smallest mip that is still >= max_size.
-
-        Decoding a 64x64 mip instead of a 2048x2048 top level keeps the
-        texture list responsive even on large vehicle/clothing dictionaries.
-        """
         best = 0
         for level in range(entry.levels):
             w = max(1, entry.width >> level)
@@ -436,21 +317,12 @@ class YtdFile:
             h = max(1, h >> 1)
         size = tex.level_size(entry.format, w, h)
         try:
-            # decode_preview subsamples blocks, so a single-mip 3072x3072 map
-            # tile still produces its list icon almost instantly
             return tex.decode_preview(entry.format, bytes(buf[off:off + size]),
                                       w, h, max_size)
         except tex.TextureFormatError as exc:
             raise YtdError("Failed to decode '%s':\n%s" % (entry.name, exc)) from exc
 
     def replace(self, entry, image):
-        """
-        Re-encode `image` and patch it over the texture's pixel data.
-
-        `image` must be (height, width, 4) uint8 RGBA at the texture's original
-        dimensions - the whole in-place strategy depends on the encoded size
-        being identical to the original.
-        """
         if entry.error:
             raise YtdError("Cannot save '%s':\n%s" % (entry.name, entry.error))
 
@@ -490,14 +362,6 @@ class YtdFile:
         buf[off:off + len(data)] = data
 
     def restore_pixels(self):
-        """
-        التراجع عن كل ترقيع طُبِّق على المورد في الذاكرة.
-
-        الحفظ يكتب البكسلات داخل المورد المحمّل نفسه، فلو حفظ المستخدم ثم
-        استرجع تكستشرًا ثم حفظ مرة أخرى، بقي التعديل القديم في الملف الناتج
-        لأنه صار جزءًا من الذاكرة. استدعاء هذه الدالة قبل تطبيق دفعة تعديلات
-        جديدة يضمن أن الملف المكتوب يعكس التعديلات الحالية فقط.
-        """
         by_index = {t.index: t for t in self.textures}
         for index, original in self._pristine.items():
             entry = by_index.get(index)
@@ -510,8 +374,6 @@ class YtdFile:
             buf[off:off + len(original)] = original
         self._pristine.clear()
 
-    # ---------------------------------------------------------------- save
-
     def save(self, path):
         try:
             self.res.to_file(path)
@@ -519,12 +381,6 @@ class YtdFile:
             raise YtdError("Could not write the .ytd file:\n%s" % exc) from exc
 
     def verify(self):
-        """
-        Re-parse the bytes we are about to write.
-
-        Cheap insurance: if patching somehow produced something unreadable we
-        find out here rather than in-game.
-        """
         try:
             data = self.res.to_bytes()
             YtdFile(Rsc7Resource.from_bytes(data))
