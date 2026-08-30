@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (QCheckBox, QFontComboBox, QGridLayout,
-                               QHBoxLayout, QLabel, QPlainTextEdit,
-                               QPushButton, QScrollArea, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFontComboBox,
+                               QGridLayout, QHBoxLayout, QLabel,
+                               QPlainTextEdit, QPushButton, QScrollArea,
+                               QSizePolicy, QVBoxLayout, QWidget)
 
 from . import icons, theme
 from .widgets import (ColorSwatch, Divider, Field, Section, SliderField,
@@ -90,7 +91,9 @@ class PropertiesPanel(QWidget):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # شبكة أمان: أي محتوى يتجاوز العرض يصير قابلًا للتمرير بدل أن
+        # يُقصّ بصمت كما حدث مع قائمة الخطوط على جهاز فيه خطوط كثيرة
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         outer.addWidget(scroll, 1)
 
         host = QWidget()
@@ -162,6 +165,15 @@ class PropertiesPanel(QWidget):
         self.font_combo = QFontComboBox()
         self.font_combo.setFixedHeight(32)
         self.font_combo.setCurrentFont(theme.font(10))
+        # القائمة تحسب عرضها الأدنى من أطول اسم خط مثبّت على الجهاز، وعلى جهاز
+        # فيه مئات الخطوط يدفع ذلك اللوحة كلها أوسع من مساحتها فيُقصّ المحتوى.
+        # نثبّت العرض على عدد أحرف معقول، ونترك القائمة المنسدلة وحدها عريضة
+        # حتى تبقى الأسماء الطويلة مقروءة عند فتحها.
+        self.font_combo.setSizeAdjustPolicy(
+            QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.font_combo.setMinimumContentsLength(10)
+        self.font_combo.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        self.font_combo.view().setMinimumWidth(280)
         self.font_combo.currentFontChanged.connect(lambda _f: self.textEdited.emit())
         section.add(Field("الخط", self.font_combo))
 
