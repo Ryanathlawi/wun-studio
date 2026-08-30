@@ -47,7 +47,7 @@ HIDDEN = [
     "%s.gui.home" % PKG,
     "%s.gui.clothing_tool" % PKG,
     "%s.gui.navigator" % PKG,
-    "%s.gui.tabs" % PKG,
+    "%s.gui.file_tree" % PKG,
     "%s.core.clothing" % PKG,
     "%s.core.adjust" % PKG,
     "%s.core.optimize" % PKG,

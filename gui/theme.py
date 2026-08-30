@@ -20,7 +20,7 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase
 APP_NAME = "Wun Studio"
 APP_TAGLINE = t("محرّر تكستشرات GTA V و FiveM")
 AUTHOR = "Athlawi"
-VERSION = "1.2"
+VERSION = "1.3"
 COPYRIGHT = "© 2026 Athlawi"
 REPO = "Ryanathlawi/wun-studio"
 
@@ -327,31 +327,17 @@ QTreeWidget::item {
 }
 QTreeWidget::item:hover    { background: @BG_HOVER; }
 QTreeWidget::item:selected { background: @ACCENT_DEEP; color: @TXT; }
+
+/* شجرة الملفات: شريط تحديد متصل. منطقة الفرع خارج مستطيل العنصر، فلو بقيت
+   بلا لون ظهرت فجوة قبل الشريط. المجلدات غير قابلة للاختيار فلا تُمسّ أسهمها. */
+#FileTree::item { border-radius: 0px; }
+#FileTree::branch:selected { background: @ACCENT_DEEP; }
 QTreeWidget::indicator {
     width: 15px; height: 15px;
     border: 1px solid @BORDER_HI; border-radius: 4px; background: @BG_INPUT;
 }
 QTreeWidget::indicator:checked {
     background: @ACCENT; border-color: @ACCENT;
-}
-
-/* ---------- تبويبات الملفات ---------- */
-
-#FileTabs::tab {
-    background: @BG_PANEL;
-    border: 1px solid @BORDER;
-    border-radius: @R_CTRL;
-    padding: 7px 12px;
-    margin-left: 4px;
-    color: @TXT_DIM;
-    min-width: 90px;
-}
-#FileTabs::tab:hover    { background: @BG_HOVER; color: @TXT; }
-#FileTabs::tab:selected { background: @BG_ELEV; border-color: @ACCENT;
-                          color: @TXT; }
-#FileTabs::close-button { subcontrol-position: left; margin-right: 4px; }
-#FileTabs QToolButton {
-    background: @BG_ELEV; border: 1px solid @BORDER; border-radius: 5px;
 }
 
 /* ---------- المقسّمات ---------- */

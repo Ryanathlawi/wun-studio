@@ -111,6 +111,8 @@ EN_MAP = {
         '%.2f GB',
     '%d تكستشر بصيغة غير مدعومة، ستُنسخ كما هي عند الحفظ.':
         '%d textures use an unsupported format and will be copied unchanged on save.',
+    '%d ملف':
+        '%d files',
     '%d ملف · %d قابل للتحسين · %d غير مقروء':
         '%d files · %d optimisable · %d unreadable',
     '%d ملف · %d موديل · %d قطعة · %d تكستشر':
@@ -201,6 +203,8 @@ EN_MAP = {
         'Rename',
     'إغلاق':
         'Close',
+    'إغلاق الملف':
+        'Close file',
     'إغلاق ملف معدَّل':
         'Close a modified file',
     'إلغاء':
@@ -409,6 +413,8 @@ EN_MAP = {
         'File / texture',
     'الملف غير مكتمل':
         'Incomplete file',
+    'الملفات':
+        'Files',
     'الموارد المضافة':
         'Added resources',
     'المورد':

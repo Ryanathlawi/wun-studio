@@ -41,7 +41,7 @@ from .optimize_tool import OptimizeTool
 from .navigator import Navigator
 from .properties import PropertiesPanel, _button
 from .shell import FramelessWindow
-from .tabs import FileTabs
+from .file_tree import FilePanel
 from .texture_list import TexturePanel
 from .tool_rail import ToolRail
 from .widgets import Divider, EmptyState, IconButton, SpinBox
@@ -353,19 +353,29 @@ class MainWindow(FramelessWindow):
 
         root.addWidget(self._build_command_bar())
 
-        self.files = FileTabs()
-        self.files.hide()                   # تظهر عند فتح أكثر من ملف
-        root.addWidget(self.files)
-
         # المقسّم يسمح للمستخدم بتوسيع الكانفس على حساب اللوحات، وهو ما
         # يحتاجه فعلًا عند العمل على تكستشر بحجم 3072×3072
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.setChildrenCollapsible(False)
         self.splitter.setHandleWidth(9)
 
+        # الملفات فوق والتكستشرات تحتها في عمود واحد: المجلد ثم ملفاته ثم
+        # تكستشرات الملف المختار، فيقرأ المستخدم التسلسل من أعلى إلى أسفل
+        self.files = FilePanel()
+        self.files.hide()                   # تظهر عند فتح أكثر من ملف
+
         self.textures = TexturePanel()
-        self.textures.setMinimumWidth(230)
-        self.splitter.addWidget(self.textures)
+
+        side = QSplitter(Qt.Vertical)
+        side.setChildrenCollapsible(False)
+        side.setHandleWidth(9)
+        side.addWidget(self.files)
+        side.addWidget(self.textures)
+        side.setStretchFactor(0, 0)
+        side.setStretchFactor(1, 1)
+        side.setSizes([252, 520])
+        side.setMinimumWidth(230)
+        self.splitter.addWidget(side)
 
         centre = QWidget()
         centre_row = QHBoxLayout(centre)
