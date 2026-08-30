@@ -123,42 +123,67 @@ class Badge(QLabel):
 
 
 class SectionHeader(QWidget):
-    """رأس قسم قابل للنقر: أيقونة، عنوان، وسهم يوضّح حالة الطي."""
+    """
+    رأس قسم قابل للنقر.
+
+    الأيقونة داخل شريحة مستديرة بلون التمييز، والقسم المفتوح يحمل شريطًا
+    رفيعًا على حافته البادئة. الغرض أن تُقرأ الأقسام كوحدات مستقلة لا كنصوص
+    متتابعة على خلفية واحدة.
+    """
 
     clicked = Signal()
+
+    CHIP = 28
+    PAD = 9
 
     def __init__(self, title, icon_name=None, parent=None):
         super().__init__(parent)
         self._icon_name = icon_name
         self._expanded = True
         self.setCursor(Qt.PointingHandCursor)
-        self.setFixedHeight(36)
+        self.setFixedHeight(42)
         self.setAttribute(Qt.WA_Hover, True)
 
         row = QHBoxLayout(self)
-        row.setContentsMargins(8, 0, 8, 0)
-        row.setSpacing(8)
+        row.setContentsMargins(self.PAD, 0, 10, 0)
+        row.setSpacing(10)
 
-        self.glyph = QLabel()
+        # الشريحة عنصر حقيقي في التخطيط لا رسمًا بإحداثيات محسوبة: التخطيط
+        # وحده يعرف أين تقع الحافة البادئة في الواجهة العربية
+        self.chip = QLabel()
+        self.chip.setFixedSize(self.CHIP, self.CHIP)
+        self.chip.setAlignment(Qt.AlignCenter)
+        self.chip.setStyleSheet("background: transparent;")
         if icon_name:
-            self.glyph.setPixmap(icons.pixmap(icon_name, 15, theme.TXT_DIM))
-        row.addWidget(self.glyph)
+            self.chip.setPixmap(icons.pixmap(icon_name, 16, theme.ACCENT))
+        row.addWidget(self.chip)
 
         self.label = QLabel(title)
         self.label.setFont(theme.font(10, medium=True))
+        self.label.setStyleSheet("background: transparent;")
         row.addWidget(self.label)
         row.addStretch(1)
 
         self.arrow = QLabel()
-        self.arrow.setPixmap(icons.pixmap("chevron", 14, theme.TXT_MUTE))
+        self.arrow.setStyleSheet("background: transparent;")
+        self.arrow.setPixmap(icons.pixmap("chevron", 13, theme.TXT_MUTE))
         row.addWidget(self.arrow)
 
     def set_expanded(self, value):
         self._expanded = bool(value)
-        pm = icons.pixmap("chevron", 14, theme.TXT_MUTE)
+        pixmap = icons.pixmap("chevron", 13,
+                              theme.ACCENT if self._expanded else theme.TXT_MUTE)
         if not self._expanded:
-            pm = pm.transformed(QTransform().rotate(180))
-        self.arrow.setPixmap(pm)
+            pixmap = pixmap.transformed(QTransform().rotate(180))
+        self.arrow.setPixmap(pixmap)
+        if self._icon_name:
+            self.chip.setPixmap(icons.pixmap(
+                self._icon_name, 16,
+                theme.ACCENT if self._expanded else theme.TXT_DIM))
+        self.label.setStyleSheet(
+            "background: transparent; color: %s;"
+            % (theme.TXT if self._expanded else theme.TXT_DIM))
+        self.update()
 
     def mousePressEvent(self, ev):
         if ev.button() == Qt.LeftButton:
@@ -173,14 +198,31 @@ class SectionHeader(QWidget):
         super().leaveEvent(ev)
 
     def paintEvent(self, ev):
-        if self.underMouse():
-            p = QPainter(self)
-            p.setRenderHint(QPainter.Antialiasing, True)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        rtl = self.layoutDirection() == Qt.RightToLeft
+        body = self.rect().adjusted(0, 3, 0, -3)
+
+        if self.underMouse() or self._expanded:
+            fill = QColor(theme.BG_ELEV)
+            fill.setAlpha(220 if self._expanded else 150)
             p.setPen(Qt.NoPen)
-            p.setBrush(QColor(theme.BG_ELEV))
-            p.drawRoundedRect(self.rect().adjusted(0, 2, 0, -2),
-                              theme.R_CTRL, theme.R_CTRL)
-            p.end()
+            p.setBrush(fill)
+            p.drawRoundedRect(body, theme.R_CTRL, theme.R_CTRL)
+
+        if self._expanded:
+            bar = QColor(theme.ACCENT)
+            p.setBrush(bar)
+            p.setPen(Qt.NoPen)
+            x = body.right() - 2 if rtl else body.left()
+            p.drawRoundedRect(x, body.top() + 7, 3, body.height() - 14, 1.5, 1.5)
+
+        tint = QColor(theme.ACCENT)
+        tint.setAlpha(46 if self._expanded else 26)
+        p.setBrush(tint)
+        p.setPen(Qt.NoPen)
+        p.drawRoundedRect(self.chip.geometry(), 8, 8)
+        p.end()
 
 
 class Section(QWidget):
@@ -206,8 +248,9 @@ class Section(QWidget):
         outer.addWidget(self.header)
 
         self.body = QWidget()
+        self.body.setObjectName("SectionBody")
         self._body_layout = QVBoxLayout(self.body)
-        self._body_layout.setContentsMargins(8, 2, 8, 12)
+        self._body_layout.setContentsMargins(12, 6, 12, 14)
         self._body_layout.setSpacing(9)
         outer.addWidget(self.body)
 

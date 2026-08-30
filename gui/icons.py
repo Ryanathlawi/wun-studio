@@ -92,7 +92,27 @@ PATHS = {
 _CACHE: dict[tuple, QIcon] = {}
 
 
-def _svg(path: str, color: str, width: float) -> bytes:
+def _svg(path: str, color: str, width: float, gradient=False) -> bytes:
+    """
+    بناء أيقونة SVG.
+
+    مع gradient يُرسم الخط بتدرّج من سماوي الشعار إلى كحليه بدل لون مصمت،
+    فتكتسب الأيقونات الكبيرة عمقًا يناسب هوية Wun. الأيقونات الصغيرة في
+    الأشرطة تبقى مصمتة لأن التدرّج يضيع تحت العشرين بكسل.
+    """
+    if gradient:
+        return (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+            '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+            '<stop offset="0%%" stop-color="%s"/>'
+            '<stop offset="55%%" stop-color="%s"/>'
+            '<stop offset="100%%" stop-color="%s"/>'
+            '</linearGradient></defs>'
+            '<path d="%s" fill="none" stroke="url(#g)" stroke-width="%s" '
+            'stroke-linecap="round" stroke-linejoin="round"/></svg>'
+            % (theme.ACCENT_HI, theme.ACCENT, theme.ACCENT_MID, path, width)
+        ).encode("utf-8")
+
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" '
         'fill="none" stroke="%s" stroke-width="%s" stroke-linecap="round" '
@@ -101,12 +121,14 @@ def _svg(path: str, color: str, width: float) -> bytes:
     ).encode("utf-8")
 
 
-def pixmap(name: str, size=20, color: str | None = None, width=1.6) -> QPixmap:
+def pixmap(name: str, size=20, color: str | None = None, width=1.6,
+           gradient=False) -> QPixmap:
     """رسم أيقونة كـ QPixmap بالحجم واللون المطلوبين."""
     path = PATHS.get(name)
     if path is None:
         return QPixmap()
-    renderer = QSvgRenderer(QByteArray(_svg(path, color or theme.TXT, width)))
+    renderer = QSvgRenderer(QByteArray(
+        _svg(path, color or theme.TXT, width, gradient)))
     pm = QPixmap(size, size)
     pm.fill(Qt.transparent)
     painter = QPainter(pm)
@@ -116,17 +138,18 @@ def pixmap(name: str, size=20, color: str | None = None, width=1.6) -> QPixmap:
     return pm
 
 
-def icon(name: str, size=20, color: str | None = None, width=1.6) -> QIcon:
+def icon(name: str, size=20, color: str | None = None, width=1.6,
+         gradient=False) -> QIcon:
     """
     أيقونة مخزّنة مؤقتًا.
 
     التخزين المؤقت مهم لأن قائمة التكستشرات وريل الأدوات يطلبان الأيقونة
     نفسها عشرات المرات أثناء إعادة الرسم.
     """
-    key = (name, size, color or theme.TXT, width)
+    key = (name, size, color or theme.TXT, width, gradient)
     hit = _CACHE.get(key)
     if hit is None:
-        hit = QIcon(pixmap(name, size, color, width))
+        hit = QIcon(pixmap(name, size, color, width, gradient))
         _CACHE[key] = hit
     return hit
 

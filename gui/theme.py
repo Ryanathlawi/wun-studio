@@ -23,25 +23,28 @@ COPYRIGHT = "© 2026 Athlawi"
 
 # ---------------------------------------------------------------- الألوان
 
-BG_APP = "#0D0E12"          # خلفية النافذة الخارجية
-BG_PANEL = "#14161B"        # اللوحات الجانبية
-BG_ELEV = "#1B1E25"         # البطاقات والعناصر المرتفعة
-BG_INPUT = "#21252E"        # الحقول القابلة للكتابة
-BG_HOVER = "#272C36"        # التحويم
-BG_CANVAS = "#0A0B0E"       # خلفية منطقة الرسم
+# مستمدّة من شعار Wun: سماوي فاتح، أزرق متوسط، وكحلي عميق
+BG_APP = "#070B12"          # خلفية النافذة الخارجية
+BG_PANEL = "#0E1826"        # اللوحات الجانبية
+BG_ELEV = "#152238"         # البطاقات والعناصر المرتفعة
+BG_INPUT = "#16233A"        # الحقول القابلة للكتابة
+BG_HOVER = "#1B2C47"        # التحويم
+BG_CANVAS = "#05080E"       # خلفية منطقة الرسم
 
-BORDER = "#282D38"
-BORDER_HI = "#39404E"
+BORDER = "#1F3352"
+BORDER_HI = "#2E4E78"
+CONTOUR = "#2E5C93"         # خطوط نقشة الخلفية
 
-TXT = "#E8EBF1"             # النص الأساسي
-TXT_DIM = "#98A2B2"         # النص الثانوي
-TXT_MUTE = "#5E6775"        # التلميحات
+TXT = "#E8F0FA"             # النص الأساسي
+TXT_DIM = "#8FA6C4"         # النص الثانوي
+TXT_MUTE = "#5A7091"        # التلميحات
 
-ACCENT = "#4C8DFF"
-ACCENT_HI = "#6FA5FF"
-ACCENT_DEEP = "#23406E"
+ACCENT = "#29A9E2"          # سماوي الشعار
+ACCENT_HI = "#5FC6F5"       # سماوي فاتح للتحويم
+ACCENT_MID = "#1C7FC4"      # أزرق متوسط
+ACCENT_DEEP = "#0E3A6B"     # كحلي عميق
 
-OK = "#3FBF7F"
+OK = "#35C08A"
 WARN = "#E8A33D"
 DANGER = "#E5484D"
 
@@ -186,15 +189,21 @@ QToolTip {
 #Shell      { background: @BG_APP; border: 1px solid @BORDER_HI;
               border-radius: @R_PANEL; }
 #TitleBar   { background: transparent; }
-#Panel      { background: @BG_PANEL; border: 1px solid @BORDER;
-              border-radius: @R_PANEL; }
-#Rail       { background: @BG_PANEL; border: 1px solid @BORDER;
-              border-radius: @R_PANEL; }
+#Panel      { background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                          stop:0 #16253C, stop:0.18 @BG_PANEL,
+                          stop:1 @BG_PANEL);
+              border: 1px solid @BORDER; border-radius: @R_PANEL; }
+#Rail       { background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                          stop:0 #16253C, stop:0.25 @BG_PANEL,
+                          stop:1 @BG_PANEL);
+              border: 1px solid @BORDER; border-radius: @R_PANEL; }
+#SectionBody { background: transparent; }
 #CanvasHost { background: @BG_CANVAS; border: 1px solid @BORDER;
               border-radius: @R_PANEL; }
 #StatusBar  { background: transparent; }
 
-#PanelTitle { color: @TXT_DIM; font-size: 9pt; }
+#PanelTitle { color: @TXT_DIM; font-size: 9pt;
+              letter-spacing: 0.5px; }
 #Hint       { color: @TXT_MUTE; font-size: 9pt; }
 #Value      { color: @TXT_DIM; font-size: 9pt; }
 
@@ -371,9 +380,9 @@ def qss() -> str:
     }
     # الأطول أولًا حتى لا يبتلع BORDER الرمزَ BORDER_HI
     for key in ("BG_APP", "BG_PANEL", "BG_ELEV", "BG_INPUT", "BG_HOVER",
-                "BG_CANVAS", "BORDER_HI", "BORDER", "TXT_DIM", "TXT_MUTE",
-                "TXT", "ACCENT_HI", "ACCENT_DEEP", "ACCENT", "OK", "WARN",
-                "DANGER"):
+                "BG_CANVAS", "BORDER_HI", "BORDER", "CONTOUR", "TXT_DIM",
+                "TXT_MUTE", "TXT", "ACCENT_HI", "ACCENT_MID", "ACCENT_DEEP",
+                "ACCENT", "OK", "WARN", "DANGER"):
         tokens["@" + key] = globals()[key]
 
     out = _QSS

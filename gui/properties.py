@@ -148,7 +148,7 @@ class PropertiesPanel(QWidget):
     # ------------------------------------------------------ الفرشاة والأشكال
 
     def _build_brush(self):
-        section = Section("الفرشاة والأشكال", "brush", expanded=True)
+        section = Section("الأدوات", "brush", expanded=True)
 
         self.size_slider = SliderField("الحجم", 1, 256, 16, " بكسل")
         self.size_slider.valueChanged.connect(self.brushSizeChanged)
@@ -192,7 +192,7 @@ class PropertiesPanel(QWidget):
     # ---------------------------------------------------- التعديلات اللونية
 
     def _build_adjust(self):
-        section = Section("التعديلات اللونية", "adjust", expanded=False)
+        section = Section("الألوان", "adjust", expanded=False)
         self.adjust_section = section
 
         self.adj_brightness = SliderField("السطوع", -100, 100, 0)
@@ -255,7 +255,7 @@ class PropertiesPanel(QWidget):
     # ------------------------------------------------------- التحديد والعرض
 
     def _build_selection_view(self):
-        section = Section("التحديد والعرض", "select", expanded=False)
+        section = Section("العرض", "select", expanded=False)
 
         row = QHBoxLayout()
         select_all = _button("تحديد الكل", "select")
@@ -304,7 +304,7 @@ class PropertiesPanel(QWidget):
     # ----------------------------------------------------- المعالجة الدفعية
 
     def _build_batch(self):
-        section = Section("معالجة دفعية", "batch", expanded=False)
+        section = Section("الدفعات", "batch", expanded=False)
 
         stamp = _button("ختم صورة على كل الملفات…", "image", "primary")
         stamp.clicked.connect(self.batchStampRequested)
@@ -426,7 +426,7 @@ class PropertiesPanel(QWidget):
     # -------------------------------------------------------- الصورة العائمة
 
     def _build_placed_image(self):
-        section = Section("لصق صورة", "image", expanded=False)
+        section = Section("الصور", "image", expanded=False)
         self.image_section = section
 
         self.import_image_btn = _button("رفع صورة…", "import", "primary")
@@ -535,7 +535,7 @@ class PropertiesPanel(QWidget):
     # ------------------------------------------------------- عمليات التكستشر
 
     def _build_texture_ops(self):
-        section = Section("عمليات التكستشر", "resize", expanded=True)
+        section = Section("التكستشر", "resize", expanded=True)
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(8)
@@ -572,7 +572,7 @@ class PropertiesPanel(QWidget):
     # ------------------------------------------------------------- التصدير
 
     def _build_export(self):
-        section = Section("تصدير التكستشر الحالي", "export", expanded=False)
+        section = Section("التصدير", "export", expanded=False)
         row = QHBoxLayout()
         png = _button("PNG…", "export")
         png.clicked.connect(self.exportPngRequested)

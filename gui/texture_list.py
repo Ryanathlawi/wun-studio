@@ -70,6 +70,14 @@ class TextureDelegate(QStyledItemDelegate):
             painter.setPen(Qt.NoPen)
         painter.drawRoundedRect(body, theme.R_CTRL, theme.R_CTRL)
 
+        if selected:
+            # شريط على الحافة البادئة يميّز الصف المختار بلا ضجيج لوني
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(theme.ACCENT))
+            bar_x = body.right() - 3 if rtl else body.left()
+            painter.drawRoundedRect(bar_x, body.top() + 9, 3,
+                                    body.height() - 18, 1.5, 1.5)
+
         # ---- المصغّرة (على جهة البداية حسب اتجاه الواجهة)
         thumb_x = (body.right() - PAD - THUMB) if rtl else (body.left() + PAD)
         thumb_y = body.top() + (body.height() - THUMB) // 2
