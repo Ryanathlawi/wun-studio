@@ -135,12 +135,16 @@ EN_MAP = {
         '%s — %d (fixable: %d)',
     '%s — %d تكستشر':
         '%s — %d textures',
+    '%s — اضغط للتفاصيل':
+        '%s — click for details',
     '%s — سقف %s':
         '%s — cap %s',
     '%s<br><br>تطوير: <b>%s</b><br>%s':
         '%s<br><br>Built by: <b>%s</b><br>%s',
     '%s^%s ينقصه الرقم %s':
         '%s^%s is missing number %s',
+    '<b>%s</b> صار متاحًا.':
+        '<b>%s</b> is now available.',
     '<b>%s</b> — الإصدار %s':
         '<b>%s</b> — version %s',
     "description 'دُمج بواسطة Wun Studio من %d مورد: %s'":
@@ -179,6 +183,8 @@ EN_MAP = {
         'All files closed',
     'أُنشئ المورد في:\n%s\n\nنُقل %d ملف%s.\n\nأضف اسم المورد إلى server.cfg ثم أعد تشغيل السيرفر.':
         'Resource created at:\n%s\n\n%d files transferred%s.\n\nAdd the resource name to server.cfg then restart the server.',
+    'إصلاحات':
+        'Bug fixes',
     'إظهار شبكة المحاذاة':
         'Show alignment grid',
     'إعادة':
@@ -281,6 +287,8 @@ EN_MAP = {
         'Missing name',
     'اسمان يعطيان نفس الـ hash: %s':
         'Two names produce the same hash: %s',
+    'افتح صفحة التحديث':
+        'Open the update page',
     'افتح على أي حال':
         'Open anyway',
     'افتح ملفات ytd، عدّل تكستشراتها، والصق الصور والنصوص، ثم احفظ ملفًا صالحًا للعبة.':
@@ -427,6 +435,12 @@ EN_MAP = {
         'Scale content',
     'تحجيم…':
         'Resize…',
+    'تحديث':
+        'Update',
+    'تحديث %s':
+        'Update %s',
+    'تحديث كبير':
+        'Major update',
     'تحديد %d×%d':
         'Selection %d×%d',
     'تحديد الكل':
@@ -633,6 +647,8 @@ EN_MAP = {
         'A resource named “%s” will be created with %d files totalling %s.%s\n\nContinue?',
     'ص':
         'Y',
+    'صدر في %s':
+        'Released %s',
     'صغّر حجم مورد كامل — ملابس أو سيارات أو خرائط — بتصغير التكستشرات المبالغ فيها وتحويل الصيغ الزائدة.':
         'Shrink a whole resource — clothing, vehicles or maps — by downscaling oversized textures and converting wasteful formats.',
     'صورة PNG (*.png)':
@@ -659,6 +675,8 @@ EN_MAP = {
         'Colour adjustments applied',
     'عدد التكستشرات يتجاوز الحد':
         'Texture count exceeds the limit',
+    'عرض التفاصيل':
+        'Show details',
     'عريض':
         'Bold',
     'عكس الألوان':
@@ -771,6 +789,8 @@ EN_MAP = {
         'No file open',
     'لا يوجد هدف':
         'No target',
+    'لاحقًا':
+        'Later',
     'لديك تعديلات لم تُحفظ في %d ملف:\n\n%s\n\nهل تخرج دون حفظها؟':
         'You have unsaved edits in %d files:\n\n%s\n\nQuit without saving them?',
     'لديك تعديلات لم تُحفظ. هل تفتح ملفات أخرى رغم ذلك؟':
@@ -813,6 +833,8 @@ EN_MAP = {
         'GTA V & FiveM texture editor',
     'مدقّق الملابس':
         'Clothing doctor',
+    'مزايا جديدة':
+        'New features',
     'مستطيل':
         'Rectangle',
     'مسح':
@@ -853,6 +875,8 @@ EN_MAP = {
         'Copy %s',
     'نسخ أقرب تنويع سابق':
         'Copy the nearest earlier variant',
+    'نسختك الحالية: %s':
+        'You have: %s',
     'نص':
         'Text',
     'نص جديد':
@@ -865,6 +889,8 @@ EN_MAP = {
         'Move %d files to the _unused folder',
     'نهاية التدرّج':
         'Gradient end',
+    'نوع التحديث: %s':
+        'Update type: %s',
     'نُفِّذت %d عملية بنجاح%s.':
         '%d operations completed successfully%s.',
     'هل تتجاهل كل تعديلاتك على «%s» وتعيد تحميله من الملف؟':
@@ -873,6 +899,10 @@ EN_MAP = {
         'Clear the whole texture so it becomes transparent?',
     'وُجدت %d صورة لكن لا يطابق اسمها أي تكستشر مفتوح.\n\nاسم الملف يجب أن يطابق اسم التكستشر تمامًا بلا امتداد.':
         '%d images were found, but none of their names match an open texture.\n\nThe file name must match the texture name exactly, without the extension.',
+    'يتوفّر إصدار أحدث: %s':
+        'A newer version is available: %s',
+    'يتوفّر تحديث':
+        'Update available',
     'يُؤخذ من %s ويُتجاهل من %s':
         'taken from %s, ignored from %s',
     '٪':

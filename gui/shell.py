@@ -31,6 +31,7 @@ class TitleBar(QWidget):
     aboutRequested = Signal()
     homeRequested = Signal()
     languageRequested = Signal()
+    updateRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -68,6 +69,17 @@ class TitleBar(QWidget):
 
         row.addStretch(1)
 
+        # زر التحديث مخفيّ حتى يعثر الفحص على إصدار أحدث
+        self.btn_update = QPushButton("")
+        self.btn_update.setProperty("kind", "primary")
+        self.btn_update.setFont(theme.font(9, medium=True))
+        self.btn_update.setCursor(Qt.PointingHandCursor)
+        self.btn_update.setFocusPolicy(Qt.NoFocus)
+        self.btn_update.setFixedHeight(26)
+        self.btn_update.clicked.connect(self.updateRequested)
+        self.btn_update.hide()
+        row.addWidget(self.btn_update)
+
         # زر اللغة يحمل اسم اللغة الأخرى بحروفها، فيُقرأ بلا ترجمة
         self.btn_lang = QPushButton(i18n.LANGUAGES[i18n.other_language()])
         self.btn_lang.setProperty("kind", "ghost")
@@ -103,6 +115,11 @@ class TitleBar(QWidget):
 
     def set_dirty(self, dirty: bool):
         self.dirty_dot.setVisible(bool(dirty))
+
+    def announce_update(self, version, tip=""):
+        self.btn_update.setText(t("تحديث %s") % version)
+        self.btn_update.setToolTip(tip)
+        self.btn_update.show()
 
     def set_maximized(self, maximized: bool):
         self.btn_max.set_icon_name("restore" if maximized else "maximize")
@@ -150,6 +167,7 @@ class FramelessWindow(QWidget):
         self.title_bar.aboutRequested.connect(self.show_about)
         self.title_bar.homeRequested.connect(self.show_home)
         self.title_bar.languageRequested.connect(self.toggle_language)
+        self.title_bar.updateRequested.connect(self.show_update)
         inner.addWidget(self.title_bar)
 
         self.body = QWidget()
@@ -168,6 +186,9 @@ class FramelessWindow(QWidget):
         pass
 
     def toggle_language(self):
+        pass
+
+    def show_update(self):
         pass
 
     # ------------------------------------------------------------- التكبير

@@ -22,6 +22,7 @@ APP_TAGLINE = t("محرّر تكستشرات GTA V و FiveM")
 AUTHOR = "Athlawi"
 VERSION = "1.1"
 COPYRIGHT = "© 2026 Athlawi"
+REPO = "Ryanathlawi/wun-studio"
 
 # ---------------------------------------------------------------- الألوان
 

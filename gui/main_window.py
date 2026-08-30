@@ -15,8 +15,10 @@ import subprocess
 import sys
 import traceback
 
-from PySide6.QtCore import QPointF, QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QKeySequence, QPainter, QShortcut
+from PySide6.QtCore import (QPointF, QRect, QRectF, Qt, QThread, QUrl,
+                            Signal)
+from PySide6.QtGui import (QColor, QDesktopServices, QKeySequence,
+                           QPainter, QShortcut)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog,
                                QDialogButtonBox, QFileDialog, QFormLayout,
                                QHBoxLayout, QLabel, QMessageBox,
@@ -24,6 +26,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog,
                                QVBoxLayout, QWidget)
 
 from ..core import adjust
+from ..core import updater
 from ..core import export_handler as exporter
 from ..core.export_handler import ExportError
 from ..core.ytd_handler import YtdError, YtdFile
@@ -60,6 +63,10 @@ def _box(parent, icon, title, text, detail=None):
     box.setText(text)
     if detail:
         box.setDetailedText(detail)
+        # زر «Show Details» يصنعه Qt بنصّ إنجليزي ثابت، فنترجمه بأنفسنا
+        for button in box.buttons():
+            if box.buttonRole(button) == QMessageBox.ActionRole:
+                button.setText(t("عرض التفاصيل"))
     return box
 
 
@@ -67,6 +74,25 @@ def show_error(parent, title, text):
     box = _box(parent, QMessageBox.Critical, title, text)
     box.addButton(t("حسنًا"), QMessageBox.AcceptRole)
     box.exec()
+
+
+class UpdateCheck(QThread):
+    """
+    يسأل GitHub عن آخر إصدار في خيط منفصل.
+
+    الفحص لا يعطّل الإقلاع ولا يظهر شيئًا عند الفشل: بلا إنترنت أو بمستودع
+    لا يُقرأ، ينتهي الخيط بصمت ولا تظهر أي إشارة للمستخدم.
+    """
+
+    found = Signal(object)
+
+    def run(self):
+        try:
+            info = updater.check(theme.REPO, theme.VERSION)
+        except Exception:
+            return
+        if info:
+            self.found.emit(info)
 
 
 def restart():
@@ -198,6 +224,11 @@ class MainWindow(FramelessWindow):
         self._connect()
         self._install_shortcuts()
         self._update_actions()
+
+        self._update_info = None
+        self._update_check = UpdateCheck(self)
+        self._update_check.found.connect(self._on_update_found)
+        self._update_check.start()
 
     # ------------------------------------------------------------ المستندات
 
@@ -1355,6 +1386,36 @@ class MainWindow(FramelessWindow):
             % (theme.APP_TAGLINE, theme.AUTHOR, theme.COPYRIGHT))
         box.addButton(t("حسنًا"), QMessageBox.AcceptRole)
         box.exec()
+
+    # -------------------------------------------------------------- التحديث
+
+    def _on_update_found(self, info):
+        self._update_info = info
+        self.title_bar.announce_update(
+            info["version"],
+            t("%s — اضغط للتفاصيل") % info["kind_label"])
+        self._status(t("يتوفّر إصدار أحدث: %s") % info["version"])
+
+    def show_update(self):
+        info = self._update_info
+        if not info:
+            return
+
+        details = [t("نوع التحديث: %s") % info["kind_label"]]
+        if info["date"]:
+            details.append(t("صدر في %s") % info["date"])
+        details.append(t("نسختك الحالية: %s") % theme.VERSION)
+
+        box = _box(self, QMessageBox.Information, t("يتوفّر تحديث"),
+                   t("<b>%s</b> صار متاحًا.") % info["title"],
+                   info["notes"] or None)
+        box.setInformativeText("\n".join(details))
+        open_button = box.addButton(t("افتح صفحة التحديث"),
+                                    QMessageBox.AcceptRole)
+        box.addButton(t("لاحقًا"), QMessageBox.RejectRole)
+        box.exec()
+        if box.clickedButton() is open_button and info["url"]:
+            QDesktopServices.openUrl(QUrl(info["url"]))
 
     # ---------------------------------------------------------------- اللغة
 
