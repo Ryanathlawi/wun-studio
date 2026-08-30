@@ -27,6 +27,7 @@ from . import icons, theme
 from .canvas import Canvas, numpy_to_qimage, qimage_to_numpy
 from .clothing_tool import ClothingTool
 from .home import HomeScreen
+from .optimize_tool import OptimizeTool
 from .navigator import Navigator
 from .properties import PropertiesPanel, _button
 from .shell import FramelessWindow
@@ -212,9 +213,9 @@ class MainWindow(FramelessWindow):
             "افحص مورد ملابس كاملًا: قطع بلا تكستشر، فجوات في الترقيم، "
             "وملفات يتيمة — مع إصلاح تلقائي.")
         self.home.add_tool(
-            "builder", "batch", "إنشاء YTD جديد",
-            "بناء قاموس تكستشرات من صور PNG مباشرة، بلا ملف أصلي.",
-            ready=False)
+            "optimize", "batch", "ضغط الموارد",
+            "صغّر حجم مورد كامل — ملابس أو سيارات أو خرائط — بتصغير "
+            "التكستشرات المبالغ فيها وتحويل الصيغ الزائدة.")
         self.home.toolChosen.connect(self.open_tool)
         self.stack.addWidget(self.home)
 
@@ -223,6 +224,10 @@ class MainWindow(FramelessWindow):
         self.clothing = ClothingTool()
         self.clothing.statusMessage.connect(self._status)
         self.stack.addWidget(self.clothing)
+
+        self.optimizer = OptimizeTool()
+        self.optimizer.statusMessage.connect(self._status)
+        self.stack.addWidget(self.optimizer)
 
         self.stack.setCurrentIndex(0)
 
@@ -518,7 +523,7 @@ class MainWindow(FramelessWindow):
     # ------------------------------------------------------- مكدّس الأدوات
 
     def open_tool(self, key):
-        pages = {"editor": 1, "clothing": 2}
+        pages = {"editor": 1, "clothing": 2, "optimize": 3}
         if key not in pages:
             return
         self.stack.setCurrentIndex(pages[key])
@@ -528,7 +533,8 @@ class MainWindow(FramelessWindow):
             self.title_bar.set_context(doc.name if doc else "لا يوجد ملف مفتوح")
             self._status("محرّر التكستشرات")
         else:
-            self.title_bar.set_context("مدقّق الملابس")
+            self.title_bar.set_context(
+                "مدقّق الملابس" if key == "clothing" else "ضغط الموارد")
 
     def show_home(self):
         self.stack.setCurrentIndex(0)

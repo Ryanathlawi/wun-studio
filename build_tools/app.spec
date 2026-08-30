@@ -49,6 +49,9 @@ HIDDEN = [
     "%s.gui.tabs" % PKG,
     "%s.core.clothing" % PKG,
     "%s.core.adjust" % PKG,
+    "%s.core.optimize" % PKG,
+    "%s.core.ytd_writer" % PKG,
+    "%s.gui.optimize_tool" % PKG,
 ]
 
 # البرنامج يستعمل QtCore و QtGui و QtWidgets و QtSvg فقط
