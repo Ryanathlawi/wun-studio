@@ -103,6 +103,8 @@ EN_MAP = {
         ' px',
     '%.0f م.ب':
         '%.0f MB',
+    '%.0f من %.0f م.ب':
+        '%.0f of %.0f MB',
     '%.1f م.ب':
         '%.1f MB',
     '%.2f جيجا':
@@ -319,6 +321,8 @@ EN_MAP = {
         'Height',
     'التباين':
         'Contrast',
+    'التثبيت يقفل البرنامج، وعندك تعديلات لم تُحفظ في %d ملف:\n\n%s\n\nهل تتابع دون حفظها؟':
+        'Installing closes the app, and you have unsaved edits in %d files:\n\n%s\n\nContinue without saving them?',
     'التحديد: %d×%d عند س %d، ص %d':
         'Selection: %d×%d at X %d, Y %d',
     'التدوير والتحجيم والقص تحافظ على أبعاد التكستشر الأصلية، وهو شرط لإعادة كتابته داخل ملف الـ ytd.':
@@ -403,6 +407,8 @@ EN_MAP = {
         'Navigator',
     'الملف / التكستشر':
         'File / texture',
+    'الملف غير مكتمل':
+        'Incomplete file',
     'الموارد المضافة':
         'Added resources',
     'المورد':
@@ -497,8 +503,12 @@ EN_MAP = {
         'Apply fixes',
     'تعديلات غير محفوظة':
         'Unsaved changes',
+    'تعذّر التنزيل':
+        'Download failed',
     'تعذّر تحميل الصورة':
         'Could not load the image',
+    'تعذّر تشغيل المثبّت':
+        'Could not start the installer',
     'تعذّر حفظ اللغة':
         'Could not save the language',
     'تعذّر فتح «%s»':
@@ -545,6 +555,8 @@ EN_MAP = {
         'Merged',
     'تمّت الكتابة':
         'Written',
+    'تنزيل التحديث':
+        'Downloading the update',
     'توجد %d تكستشرات بلا ملف ydd يقابلها، وهي وزن ميت في المورد.':
         'There are %d textures with no matching ydd file — dead weight in the resource.',
     'توجد تعديلات غير محفوظة':
@@ -563,6 +575,8 @@ EN_MAP = {
         'Merging…',
     'جاري بناء معاينات التكستشرات…':
         'Building texture previews…',
+    'جاري تنزيل التحديث…':
+        'Downloading the update…',
     'جاري حفظ %s…':
         'Saving %s…',
     'جاري حفظ الملفات…':
@@ -575,6 +589,10 @@ EN_MAP = {
         'Keep aspect ratio',
     "حجم البيانات الخام لـ '%s' لا يطابق المتوقع (%d مقابل %d)":
         "Raw data size for '%s' does not match the expected size (%d vs %d)",
+    'حجم التنزيل: %.0f م.ب':
+        'Download size: %.0f MB',
+    'حجم الملف المنزَّل لا يطابق المتوقّع (%d مقابل %d بايت). أعد المحاولة.':
+        'The downloaded file size does not match the expected one (%d vs %d bytes). Try again.',
     'حدّد منطقة بأداة التحديد أولًا، ثم أعد المحاولة.':
         'Select an area with the selection tool first, then try again.',
     'حرّك أحد المنزلقات أولًا.':
@@ -795,6 +813,8 @@ EN_MAP = {
         'You have unsaved edits in %d files:\n\n%s\n\nQuit without saving them?',
     'لديك تعديلات لم تُحفظ. هل تفتح ملفات أخرى رغم ذلك؟':
         'You have unsaved edits. Open other files anyway?',
+    'لم يكتمل تنزيل التحديث:\n\n%s':
+        'The update download did not finish:\n\n%s',
     'لم يُختر تكستشر':
         'No texture selected',
     'لم يُختر مجلد بعد':
@@ -869,6 +889,8 @@ EN_MAP = {
         'Splitter position',
     'نتيجة الفحص':
         'Scan result',
+    'نزّل وثبّت':
+        'Download and install',
     'نسخ':
         'Copy',
     'نسخ %s':

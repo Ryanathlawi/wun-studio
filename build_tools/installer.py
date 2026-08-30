@@ -18,7 +18,7 @@ import zipfile
 
 APP_NAME = "Wun Studio"
 PUBLISHER = "Athlawi"
-VERSION = "1.1"
+VERSION = "1.2"
 TAGLINE = "محرّر وأدوات GTA V و FiveM"
 COPYRIGHT = "© 2026 Athlawi"
 REG_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\WunStudio"

@@ -13,10 +13,11 @@ from ..i18n import t
 import os
 import subprocess
 import sys
+import tempfile
 import traceback
 
-from PySide6.QtCore import (QPointF, QRect, QRectF, Qt, QThread, QUrl,
-                            Signal)
+from PySide6.QtCore import (QPointF, QRect, QRectF, Qt, QThread, QTimer,
+                            QUrl, Signal)
 from PySide6.QtGui import (QColor, QDesktopServices, QKeySequence,
                            QPainter, QShortcut)
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog,
@@ -63,11 +64,23 @@ def _box(parent, icon, title, text, detail=None):
     box.setText(text)
     if detail:
         box.setDetailedText(detail)
-        # زر «Show Details» يصنعه Qt بنصّ إنجليزي ثابت، فنترجمه بأنفسنا
-        for button in box.buttons():
-            if box.buttonRole(button) == QMessageBox.ActionRole:
-                button.setText(t("عرض التفاصيل"))
+        # Qt ينشئ زر «Show Details» متأخّرًا وبنصّ إنجليزي ثابت، ويعيد كتابته
+        # كلما ضُغط. فنؤجّل الترجمة إلى ما بعد الإنشاء، ونعيدها عند كل ضغطة.
+        QTimer.singleShot(0, lambda: _localize_details(box))
     return box
+
+
+def _localize_details(box):
+    for button in box.buttons():
+        if box.buttonRole(button) != QMessageBox.ActionRole:
+            continue
+        if button.text().replace("&", "") not in ("Show Details...",
+                                                  "Hide Details..."):
+            continue
+        button.setText(t("عرض التفاصيل"))
+        button.clicked.connect(
+            lambda _checked=False, b=button: QTimer.singleShot(
+                0, lambda: b.setText(t("عرض التفاصيل"))))
 
 
 def show_error(parent, title, text):
@@ -93,6 +106,36 @@ class UpdateCheck(QThread):
             return
         if info:
             self.found.emit(info)
+
+
+class UpdateDownload(QThread):
+    """تنزيل ملف التثبيت مع تقدّم قابل للإلغاء."""
+
+    progress = Signal(int, int)
+    ready = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, url, target, parent=None):
+        super().__init__(parent)
+        self.url = url
+        self.target = target
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def run(self):
+        def tick(done, total):
+            self.progress.emit(done, total)
+            return not self._cancelled
+
+        try:
+            written = updater.download(self.url, self.target, tick)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+        if written is not None:
+            self.ready.emit(self.target)
 
 
 def restart():
@@ -1406,16 +1449,85 @@ class MainWindow(FramelessWindow):
             details.append(t("صدر في %s") % info["date"])
         details.append(t("نسختك الحالية: %s") % theme.VERSION)
 
+        asset = updater.installer_asset(info)
+        if asset and asset["size"]:
+            details.append(t("حجم التنزيل: %.0f م.ب") % (asset["size"] / 1e6))
+
         box = _box(self, QMessageBox.Information, t("يتوفّر تحديث"),
                    t("<b>%s</b> صار متاحًا.") % info["title"],
                    info["notes"] or None)
         box.setInformativeText("\n".join(details))
+        install_button = None
+        if asset:
+            install_button = box.addButton(t("نزّل وثبّت"),
+                                           QMessageBox.AcceptRole)
         open_button = box.addButton(t("افتح صفحة التحديث"),
-                                    QMessageBox.AcceptRole)
+                                    QMessageBox.ActionRole)
         box.addButton(t("لاحقًا"), QMessageBox.RejectRole)
         box.exec()
-        if box.clickedButton() is open_button and info["url"]:
+
+        clicked = box.clickedButton()
+        if clicked is install_button and asset:
+            self._download_update(asset)
+        elif clicked is open_button and info["url"]:
             QDesktopServices.openUrl(QUrl(info["url"]))
+
+    def _download_update(self, asset):
+        self._stash_current()
+        dirty = self._dirty_documents()
+        if dirty:
+            names = "\n".join(d.name for d in dirty[:8])
+            if not ask(self, t("تعديلات غير محفوظة"),
+                       t("التثبيت يقفل البرنامج، وعندك تعديلات لم تُحفظ في "
+                         "%d ملف:\n\n%s\n\nهل تتابع دون حفظها؟")
+                       % (len(dirty), names),
+                       t("تابع"), warning=True):
+                return
+
+        target = os.path.join(tempfile.gettempdir(), asset["name"])
+        progress = QProgressDialog(t("جاري تنزيل التحديث…"), t("إلغاء"),
+                                   0, 100, self)
+        progress.setWindowTitle(t("تنزيل التحديث"))
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setAutoClose(False)
+
+        worker = UpdateDownload(asset["url"], target, self)
+
+        def on_progress(done, total):
+            total = total or asset["size"] or 1
+            progress.setValue(int(100 * done / total))
+            progress.setLabelText(t("%.0f من %.0f م.ب")
+                                  % (done / 1e6, total / 1e6))
+
+        def on_failed(message):
+            progress.close()
+            show_error(self, t("تعذّر التنزيل"),
+                       t("لم يكتمل تنزيل التحديث:\n\n%s") % message)
+
+        def on_ready(path):
+            progress.close()
+            size = os.path.getsize(path) if os.path.exists(path) else 0
+            if asset["size"] and size != asset["size"]:
+                show_error(self, t("الملف غير مكتمل"),
+                           t("حجم الملف المنزَّل لا يطابق المتوقّع "
+                             "(%d مقابل %d بايت). أعد المحاولة.")
+                           % (size, asset["size"]))
+                return
+            try:
+                subprocess.Popen([path], cwd=os.path.dirname(path),
+                                 close_fds=True)
+            except OSError as exc:
+                show_error(self, t("تعذّر تشغيل المثبّت"), str(exc))
+                return
+            self._restarting = True
+            QApplication.quit()
+
+        worker.progress.connect(on_progress)
+        worker.failed.connect(on_failed)
+        worker.ready.connect(on_ready)
+        progress.canceled.connect(worker.cancel)
+        worker.start()
 
     # ---------------------------------------------------------------- اللغة
 

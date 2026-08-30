@@ -71,6 +71,15 @@ def fetch(repo, timeout=TIMEOUT):
     tag = data.get("tag_name") or ""
     if not tag:
         return None
+
+    assets = []
+    for item in data.get("assets") or []:
+        name = item.get("name") or ""
+        link = item.get("browser_download_url") or ""
+        if name and link:
+            assets.append({"name": name, "url": link,
+                           "size": int(item.get("size") or 0)})
+
     return {
         "tag": tag,
         "version": tag.lstrip("vV"),
@@ -78,7 +87,39 @@ def fetch(repo, timeout=TIMEOUT):
         "notes": (data.get("body") or "").strip(),
         "url": data.get("html_url") or "",
         "date": (data.get("published_at") or "")[:10],
+        "assets": assets,
     }
+
+
+def installer_asset(info):
+    """ملف التثبيت داخل الإصدار، إن وُجد."""
+    for item in (info or {}).get("assets") or []:
+        if item["name"].lower().endswith(".exe"):
+            return item
+    return None
+
+
+def download(url, target, progress=None, chunk=262144, timeout=30):
+    """
+    ينزّل ملفًا إلى مسار محدّد.
+
+    يرجع عدد البايتات المكتوبة، أو None إن ألغى المستخدم. الاستثناءات تصعد
+    للمستدعي هنا - بخلاف الفحص - لأن فشل تنزيل طلبه المستخدم يجب أن يُعرض.
+    """
+    request = urllib.request.Request(url, headers={"User-Agent": "WunStudio"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        total = int(response.headers.get("Content-Length") or 0)
+        done = 0
+        with open(target, "wb") as handle:
+            while True:
+                block = response.read(chunk)
+                if not block:
+                    break
+                handle.write(block)
+                done += len(block)
+                if progress is not None and not progress(done, total):
+                    return None
+    return done
 
 
 def check(repo, current, timeout=TIMEOUT):
