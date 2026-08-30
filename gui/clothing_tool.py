@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from ..i18n import t
+
 import os
 
 from PySide6.QtCore import Qt, Signal
@@ -22,11 +24,11 @@ from .widgets import Divider, EmptyState
 ISSUE_ROLE = Qt.UserRole + 1
 
 KIND_LABELS = {
-    "missing_texture": "قطع بلا تكستشر",
-    "orphan_texture": "تكستشرات بلا قطعة",
-    "drawable_gap": "فجوات في ترقيم القطع",
-    "variant_gap": "فجوات في حروف التنويعات",
-    "bad_name": "ملفات خارج نمط التسمية",
+    "missing_texture": t("قطع بلا تكستشر"),
+    "orphan_texture": t("تكستشرات بلا قطعة"),
+    "drawable_gap": t("فجوات في ترقيم القطع"),
+    "variant_gap": t("فجوات في حروف التنويعات"),
+    "bad_name": t("ملفات خارج نمط التسمية"),
 }
 
 SEVERITY_ICON = {"error": ("warn", theme.DANGER),
@@ -62,12 +64,12 @@ class ClothingTool(QWidget):
         row.setContentsMargins(2, 0, 2, 0)
         row.setSpacing(7)
 
-        self.btn_pick = _button("اختر مجلد الملابس", "open", "primary",
-                                "مجلد stream داخل مورد الملابس")
+        self.btn_pick = _button(t("اختر مجلد الملابس"), "open", "primary",
+                                t("مجلد stream داخل مورد الملابس"))
         self.btn_pick.clicked.connect(self.pick_folder)
         row.addWidget(self.btn_pick)
 
-        self.btn_rescan = _button("إعادة الفحص", "revert")
+        self.btn_rescan = _button(t("إعادة الفحص"), "revert")
         self.btn_rescan.clicked.connect(self.rescan)
         self.btn_rescan.setEnabled(False)
         row.addWidget(self.btn_rescan)
@@ -76,7 +78,7 @@ class ClothingTool(QWidget):
 
         self.path_field = QLineEdit()
         self.path_field.setReadOnly(True)
-        self.path_field.setPlaceholderText("لم يُختر مجلد بعد")
+        self.path_field.setPlaceholderText(t("لم يُختر مجلد بعد"))
         self.path_field.setLayoutDirection(Qt.LeftToRight)
         row.addWidget(self.path_field, 1)
         return bar
@@ -92,7 +94,7 @@ class ClothingTool(QWidget):
         head.setSpacing(7)
         glyph = QLabel()
         glyph.setPixmap(icons.pixmap("select", 15, theme.TXT_DIM))
-        title = QLabel("نتيجة الفحص")
+        title = QLabel(t("نتيجة الفحص"))
         title.setObjectName("PanelTitle")
         self.stats_label = QLabel("")
         self.stats_label.setObjectName("Hint")
@@ -111,9 +113,9 @@ class ClothingTool(QWidget):
         column.addWidget(self.tree, 1)
 
         self.empty = EmptyState(
-            "select", "لم يُفحص أي مورد بعد",
-            "اختر مجلد stream داخل مورد الملابس، وسيُفحص كل ما فيه من "
-            "ملفات ydd و ytd بحثًا عن اليتامى والفجوات.")
+            "select", t("لم يُفحص أي مورد بعد"),
+            t("اختر مجلد stream داخل مورد الملابس، وسيُفحص كل ما فيه من "
+            "ملفات ydd و ytd بحثًا عن اليتامى والفجوات."))
         column.addWidget(self.empty, 1)
         self.tree.hide()
         return host
@@ -130,13 +132,13 @@ class ClothingTool(QWidget):
         row.addWidget(self.summary_label)
         row.addStretch(1)
 
-        self.btn_all = _button("تحديد كل القابل للإصلاح", "check")
+        self.btn_all = _button(t("تحديد كل القابل للإصلاح"), "check")
         self.btn_all.clicked.connect(lambda: self._set_all(True))
-        self.btn_none = _button("إلغاء التحديد", "close")
+        self.btn_none = _button(t("إلغاء التحديد"), "close")
         self.btn_none.clicked.connect(lambda: self._set_all(False))
-        self.btn_preview = _button("معاينة جافة", "info")
+        self.btn_preview = _button(t("معاينة جافة"), "info")
         self.btn_preview.clicked.connect(self.preview)
-        self.btn_apply = _button("تطبيق الإصلاحات", "check", "primary")
+        self.btn_apply = _button(t("تطبيق الإصلاحات"), "check", "primary")
         self.btn_apply.clicked.connect(self.apply_fixes)
 
         for widget in (self.btn_all, self.btn_none, self.btn_preview,
@@ -149,7 +151,7 @@ class ClothingTool(QWidget):
 
     def pick_folder(self):
         folder = QFileDialog.getExistingDirectory(
-            self, "اختر مجلد الملابس (‏stream)")
+            self, t("اختر مجلد الملابس (‏stream)"))
         if folder:
             self.folder = folder
             self.path_field.setText(folder)
@@ -167,12 +169,12 @@ class ClothingTool(QWidget):
 
         stats = self.index.stats()
         self.stats_label.setText(
-            "%d ملف · %d موديل · %d قطعة · %d تكستشر"
+            t("%d ملف · %d موديل · %d قطعة · %d تكستشر")
             % (stats["files"], stats["models"], stats["ydd"], stats["ytd"]))
         self._populate()
         self.btn_rescan.setEnabled(True)
         self.statusMessage.emit(
-            "فُحص %s — %d مشكلة" % (os.path.basename(self.folder),
+            t("فُحص %s — %d مشكلة") % (os.path.basename(self.folder),
                                     len(self.issues)))
 
     def _populate(self):
@@ -188,7 +190,7 @@ class ClothingTool(QWidget):
                 key=lambda kv: clothing.SEVERITY_ORDER[kv[1][0].severity]):
             parent = QTreeWidgetItem(self.tree)
             fixable = sum(1 for issue in group if issue.fixable)
-            parent.setText(0, "%s — %d (قابل للإصلاح: %d)"
+            parent.setText(0, t("%s — %d (قابل للإصلاح: %d)")
                            % (KIND_LABELS.get(kind, kind), len(group), fixable))
             parent.setFont(0, theme.font(10, medium=True))
             name, colour = SEVERITY_ICON[group[0].severity]
@@ -215,9 +217,9 @@ class ClothingTool(QWidget):
         self.tree.setVisible(has_issues)
         self.empty.setVisible(not has_issues)
         if not has_issues:
-            self.empty.title.setText("المورد سليم")
+            self.empty.title.setText(t("المورد سليم"))
             self.empty.hint.setText(
-                "لم يُعثر على يتامى ولا فجوات في التسمية أو الترقيم.")
+                t("لم يُعثر على يتامى ولا فجوات في التسمية أو الترقيم."))
         for widget in (self.btn_all, self.btn_none, self.btn_preview,
                        self.btn_apply):
             widget.setEnabled(has_issues)
@@ -258,7 +260,7 @@ class ClothingTool(QWidget):
         actions = clothing.plan(chosen)
         counts = clothing.summary(self.issues)
         self.summary_label.setText(
-            "أخطاء %d · تحذيرات %d · مختار %d مشكلة (%d عملية ملف)"
+            t("أخطاء %d · تحذيرات %d · مختار %d مشكلة (%d عملية ملف)")
             % (counts["error"], counts["warning"], len(chosen), len(actions)))
         self.btn_apply.setEnabled(bool(actions))
         self.btn_preview.setEnabled(bool(actions))
@@ -271,16 +273,16 @@ class ClothingTool(QWidget):
         kinds = {}
         for kind, _source, _target in actions:
             kinds[kind] = kinds.get(kind, 0) + 1
-        labels = {"copy": "نسخ", "move": "نقل", "rename": "إعادة تسمية"}
-        breakdown = "، ".join("%s %d" % (labels.get(k, k), n)
+        labels = {"copy": t("نسخ"), "move": t("نقل"), "rename": t("إعادة تسمية")}
+        breakdown = t("، ").join("%s %d" % (labels.get(k, k), n)
                               for k, n in sorted(kinds.items()))
         detail = "\n".join(
             "%s\n   %s  ←  %s" % (labels.get(k, k),
-                                  os.path.basename(t), os.path.basename(s))
-            for k, s, t in actions[:200])
-        show_info(self, "معاينة جافة",
-                  "ستُنفَّذ %d عملية على الملفات: %s.\n\n"
-                  "لم يُكتب أي شيء بعد." % (len(actions), breakdown),
+                                  os.path.basename(dst), os.path.basename(s))
+            for k, s, dst in actions[:200])
+        show_info(self, t("معاينة جافة"),
+                  t("ستُنفَّذ %d عملية على الملفات: %s.\n\n"
+                  "لم يُكتب أي شيء بعد.") % (len(actions), breakdown),
                   detail)
 
     def apply_fixes(self):
@@ -293,15 +295,15 @@ class ClothingTool(QWidget):
         renames = sum(1 for kind, _s, _t in actions if kind == "rename")
         warning = ""
         if renames:
-            warning = ("\n\n⚠ من بينها %d عملية إعادة ترقيم. لو كانت أرقام "
+            warning = (t("\n\n⚠ من بينها %d عملية إعادة ترقيم. لو كانت أرقام "
                        "القطع مذكورة في ملفات meta أو في سكربتاتك فستحتاج "
-                       "تحديثها يدويًا." % renames)
+                       "تحديثها يدويًا.") % renames)
 
-        if not ask(self, "تطبيق الإصلاحات",
-                   "ستُنفَّذ %d عملية على ملفات المورد، ولا يمكن التراجع "
-                   "تلقائيًا.%s\n\nهل أخذت نسخة احتياطية؟"
+        if not ask(self, t("تطبيق الإصلاحات"),
+                   t("ستُنفَّذ %d عملية على ملفات المورد، ولا يمكن التراجع "
+                   "تلقائيًا.%s\n\nهل أخذت نسخة احتياطية؟")
                    % (len(actions), warning),
-                   "طبّق الآن", warning=True):
+                   t("طبّق الآن"), warning=True):
             return
 
         QApplication.setOverrideCursor(Qt.WaitCursor)
@@ -310,10 +312,10 @@ class ClothingTool(QWidget):
         finally:
             QApplication.restoreOverrideCursor()
 
-        show_info(self, "تمّ الإصلاح",
-                  "نُفِّذت %d عملية بنجاح%s."
-                  % (len(done), "، وفشلت %d" % len(failed) if failed else ""),
+        show_info(self, t("تمّ الإصلاح"),
+                  t("نُفِّذت %d عملية بنجاح%s.")
+                  % (len(done), t("، وفشلت %d") % len(failed) if failed else ""),
                   "\n".join("%s: %s" % (os.path.basename(p), e)
                             for p, e in failed) if failed else None)
-        self.statusMessage.emit("أُصلحت %d عملية" % len(done))
+        self.statusMessage.emit(t("أُصلحت %d عملية") % len(done))
         self.rescan()

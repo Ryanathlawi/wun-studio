@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from ..i18n import t
+
 import os
 
 from PySide6.QtCore import Qt, Signal
@@ -23,7 +25,7 @@ from .widgets import Divider, EmptyState, SliderField
 
 
 def _mb(value):
-    return "%.1f م.ب" % (value / 1e6)
+    return t("%.1f م.ب") % (value / 1e6)
 
 
 class OptimizeTool(QWidget):
@@ -53,8 +55,8 @@ class OptimizeTool(QWidget):
         row.setContentsMargins(2, 0, 2, 0)
         row.setSpacing(7)
 
-        self.btn_pick = _button("اختر مجلد المورد", "open", "primary",
-                                "مجلد stream داخل المورد")
+        self.btn_pick = _button(t("اختر مجلد المورد"), "open", "primary",
+                                t("مجلد stream داخل المورد"))
         self.btn_pick.clicked.connect(self.pick_folder)
         row.addWidget(self.btn_pick)
 
@@ -62,18 +64,18 @@ class OptimizeTool(QWidget):
         self.preset.setFixedHeight(34)
         for key, data in opt.PRESETS.items():
             cap = data["max_size"]
-            label = "%s — سقف %s" % (data["label"],
-                                     "%d px" % cap if cap else "بلا تصغير")
+            label = t("%s — سقف %s") % (data["label"],
+                                     "%d px" % cap if cap else t("بلا تصغير"))
             self.preset.addItem(label, key)
         self.preset.currentIndexChanged.connect(self._on_preset)
         row.addWidget(self.preset)
 
-        self.cap = SliderField("سقف الأبعاد", 0, 4096, 1024, " بكسل")
+        self.cap = SliderField(t("سقف الأبعاد"), 0, 4096, 1024, t(" بكسل"))
         self.cap.setFixedWidth(210)
         self.cap.valueChanged.connect(lambda _v: None)
         row.addWidget(self.cap)
 
-        self.btn_scan = _button("افحص", "search")
+        self.btn_scan = _button(t("افحص"), "search")
         self.btn_scan.clicked.connect(self.rescan)
         self.btn_scan.setEnabled(False)
         row.addWidget(self.btn_scan)
@@ -82,7 +84,7 @@ class OptimizeTool(QWidget):
 
         self.path_field = QLineEdit()
         self.path_field.setReadOnly(True)
-        self.path_field.setPlaceholderText("لم يُختر مجلد بعد")
+        self.path_field.setPlaceholderText(t("لم يُختر مجلد بعد"))
         self.path_field.setLayoutDirection(Qt.LeftToRight)
         row.addWidget(self.path_field, 1)
         return bar
@@ -98,7 +100,7 @@ class OptimizeTool(QWidget):
         head.setSpacing(7)
         glyph = QLabel()
         glyph.setPixmap(icons.pixmap("batch", 15, theme.TXT_DIM))
-        title = QLabel("تقرير الضغط")
+        title = QLabel(t("تقرير الضغط"))
         title.setObjectName("PanelTitle")
         self.stats_label = QLabel("")
         self.stats_label.setObjectName("Hint")
@@ -110,7 +112,7 @@ class OptimizeTool(QWidget):
 
         self.tree = QTreeWidget()
         self.tree.setColumnCount(4)
-        self.tree.setHeaderLabels(["الملف / التكستشر", "قبل", "بعد", "الإجراء"])
+        self.tree.setHeaderLabels([t("الملف / التكستشر"), t("قبل"), t("بعد"), t("الإجراء")])
         self.tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
         for column_index in (1, 2, 3):
             self.tree.header().setSectionResizeMode(column_index,
@@ -119,9 +121,9 @@ class OptimizeTool(QWidget):
         column.addWidget(self.tree, 1)
 
         self.empty = EmptyState(
-            "batch", "لم يُفحص أي مورد بعد",
-            "اختر مجلد المورد ثم اضغط «افحص». لن يُكتب شيء — التقرير يوريك "
-            "كم يمكن توفيره قبل أي قرار.")
+            "batch", t("لم يُفحص أي مورد بعد"),
+            t("اختر مجلد المورد ثم اضغط «افحص». لن يُكتب شيء — التقرير يوريك "
+            "كم يمكن توفيره قبل أي قرار."))
         column.addWidget(self.empty, 1)
         self.tree.hide()
         return host
@@ -138,7 +140,7 @@ class OptimizeTool(QWidget):
         row.addWidget(self.summary_label)
         row.addStretch(1)
 
-        self.btn_apply = _button("اكتب نسخة محسّنة…", "export", "primary")
+        self.btn_apply = _button(t("اكتب نسخة محسّنة…"), "export", "primary")
         self.btn_apply.clicked.connect(self.apply_optimisation)
         self.btn_apply.setEnabled(False)
         row.addWidget(self.btn_apply)
@@ -163,7 +165,7 @@ class OptimizeTool(QWidget):
     # ---------------------------------------------------------------- الفحص
 
     def pick_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "اختر مجلد المورد")
+        folder = QFileDialog.getExistingDirectory(self, t("اختر مجلد المورد"))
         if folder:
             self.folder = folder
             self.path_field.setText(folder)
@@ -173,8 +175,8 @@ class OptimizeTool(QWidget):
     def rescan(self):
         if not self.folder:
             return
-        progress = QProgressDialog("جاري فحص الملفات…", "إلغاء", 0, 1, self)
-        progress.setWindowTitle("فحص المورد")
+        progress = QProgressDialog(t("جاري فحص الملفات…"), t("إلغاء"), 0, 1, self)
+        progress.setWindowTitle(t("فحص المورد"))
         progress.setWindowModality(Qt.WindowModal)
         progress.setMinimumDuration(300)
 
@@ -197,7 +199,7 @@ class OptimizeTool(QWidget):
             if file_plan.error:
                 item = QTreeWidgetItem(self.tree)
                 item.setText(0, file_plan.name)
-                item.setText(3, "غير مقروء")
+                item.setText(3, t("غير مقروء"))
                 item.setIcon(0, icons.icon("warn", 14, theme.DANGER))
                 continue
             if not file_plan.changed:
@@ -207,7 +209,7 @@ class OptimizeTool(QWidget):
             item.setText(0, file_plan.name)
             item.setText(1, _mb(file_plan.old_bytes))
             item.setText(2, _mb(file_plan.new_bytes))
-            item.setText(3, "توفير %d%%" % round(
+            item.setText(3, t("توفير %d%%") % round(
                 100 * file_plan.saved / max(1, file_plan.old_bytes)))
             item.setFont(0, theme.font(10, medium=True))
             item.setIcon(0, icons.icon("layers", 14, theme.ACCENT))
@@ -222,30 +224,30 @@ class OptimizeTool(QWidget):
                                  texture.height))
                 child.setText(1, _mb(texture.old_bytes))
                 child.setText(2, _mb(texture.new_bytes))
-                child.setText(3, "، ".join(texture.reasons))
+                child.setText(3, t("، ").join(texture.reasons))
 
         has_savings = stats["changed"] > 0
         self.tree.setVisible(has_savings)
         self.empty.setVisible(not has_savings)
         if not has_savings:
-            self.empty.title.setText("لا يوجد ما يُضغط")
+            self.empty.title.setText(t("لا يوجد ما يُضغط"))
             self.empty.hint.setText(
-                "كل التكستشرات ضمن السقف المختار ولا توجد صيغ زائدة. "
-                "جرّب سقفًا أصغر أو نمطًا أقوى.")
+                t("كل التكستشرات ضمن السقف المختار ولا توجد صيغ زائدة. "
+                "جرّب سقفًا أصغر أو نمطًا أقوى."))
 
         self.stats_label.setText(
-            "%d ملف · %d قابل للتحسين · %d غير مقروء"
+            t("%d ملف · %d قابل للتحسين · %d غير مقروء")
             % (stats["files"], stats["changed"], stats["errors"]))
         percent = 100 * stats["saved"] / max(1, stats["old_bytes"])
         self.summary_label.setText(
-            "بيانات البكسل %s ← %s   ·   التوفير %s (%.0f%%)   ·   "
-            "%d تكستشر صُغّر، %d غيّر صيغته"
+            t("بيانات البكسل %s ← %s   ·   التوفير %s (%.0f%%)   ·   "
+            "%d تكستشر صُغّر، %d غيّر صيغته")
             % (_mb(stats["old_bytes"]), _mb(stats["new_bytes"]),
                _mb(stats["saved"]), percent, stats["downscaled"],
                stats["reformatted"]))
         self.btn_apply.setEnabled(has_savings)
         self.statusMessage.emit(
-            "فُحص %s — توفير %s" % (os.path.basename(self.folder),
+            t("فُحص %s — توفير %s") % (os.path.basename(self.folder),
                                     _mb(stats["saved"])))
 
     # -------------------------------------------------------------- التنفيذ
@@ -254,26 +256,26 @@ class OptimizeTool(QWidget):
         from .main_window import ask, show_info
 
         out = QFileDialog.getExistingDirectory(
-            self, "اختر مجلدًا للنسخة المحسّنة")
+            self, t("اختر مجلدًا للنسخة المحسّنة"))
         if not out:
             return
         if os.path.abspath(out) == os.path.abspath(self.folder):
-            show_info(self, "اختر مجلدًا آخر",
-                      "لا يمكن الكتابة داخل المورد الأصلي. اختر مجلدًا فارغًا "
-                      "حتى يبقى الأصل سليمًا.")
+            show_info(self, t("اختر مجلدًا آخر"),
+                      t("لا يمكن الكتابة داخل المورد الأصلي. اختر مجلدًا فارغًا "
+                      "حتى يبقى الأصل سليمًا."))
             return
 
         stats = opt.summary(self.plans)
-        if not ask(self, "كتابة النسخة المحسّنة",
-                   "ستُكتب %d ملف في:\n%s\n\nالتوفير المتوقع %s. الملفات غير "
+        if not ask(self, t("كتابة النسخة المحسّنة"),
+                   t("ستُكتب %d ملف في:\n%s\n\nالتوفير المتوقع %s. الملفات غير "
                    "المتغيّرة تُنسخ كما هي، والمورد الأصلي لا يُلمس.\n\n"
-                   "إعادة الترميز تستغرق وقتًا على الموارد الكبيرة. هل تتابع؟"
-                   % (stats["files"], out, _mb(stats["saved"])), "ابدأ"):
+                   "إعادة الترميز تستغرق وقتًا على الموارد الكبيرة. هل تتابع؟")
+                   % (stats["files"], out, _mb(stats["saved"])), t("ابدأ")):
             return
 
-        progress = QProgressDialog("جاري إعادة الترميز…", "إلغاء", 0,
+        progress = QProgressDialog(t("جاري إعادة الترميز…"), t("إلغاء"), 0,
                                    len(self.plans), self)
-        progress.setWindowTitle("ضغط المورد")
+        progress.setWindowTitle(t("ضغط المورد"))
         progress.setWindowModality(Qt.WindowModal)
         progress.setMinimumDuration(0)
 
@@ -294,13 +296,13 @@ class OptimizeTool(QWidget):
                 after += os.path.getsize(os.path.join(root, name))
 
         show_info(
-            self, "تمّت الكتابة",
-            "كُتب %d ملف محسّن، ونُسخ %d كما هو%s.\n\n"
-            "الحجم على القرص: %s ← %s (توفير %.0f%%)"
+            self, t("تمّت الكتابة"),
+            t("كُتب %d ملف محسّن، ونُسخ %d كما هو%s.\n\n"
+            "الحجم على القرص: %s ← %s (توفير %.0f%%)")
             % (len(written), len(skipped),
-               "، وفشل %d" % len(failed) if failed else "",
+               t("، وفشل %d") % len(failed) if failed else "",
                _mb(before), _mb(after),
                100 * (before - after) / max(1, before)),
             "\n".join("%s: %s" % (name, err) for name, err in failed[:60])
             if failed else None)
-        self.statusMessage.emit("كُتبت نسخة محسّنة في %s" % out)
+        self.statusMessage.emit(t("كُتبت نسخة محسّنة في %s") % out)

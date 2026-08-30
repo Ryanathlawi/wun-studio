@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..i18n import t
+
 import os
 import re
 import shutil
@@ -173,25 +175,25 @@ def diagnose(index: Index):
                     "%s^%s_diff_%03d_a_%s.ytd"
                     % (model, component, drawable, source.suffix))
                 fix = Fix("copy_texture",
-                          "نسخ %s" % source.name,
+                          t("نسخ %s") % source.name,
                           [("copy", source.path, target)])
             issues.append(Issue(
                 "missing_texture", "error",
-                "%s بلا تكستشر" % label,
-                "القطعة موجودة بلا أي ملف تكستشر، فتظهر في اللعبة بلا خامة.",
+                t("%s بلا تكستشر") % label,
+                t("القطعة موجودة بلا أي ملف تكستشر، فتظهر في اللعبة بلا خامة."),
                 fix, [slot["ydd"]]))
 
         if slot["ytd"] and not slot["ydd"]:
             entries = list(slot["ytd"].values())
             quarantine = os.path.join(index.folder, "_unused")
             fix = Fix("quarantine",
-                      "نقل %d ملف إلى مجلد _unused" % len(entries),
+                      t("نقل %d ملف إلى مجلد _unused") % len(entries),
                       [("move", e.path,
                         os.path.join(quarantine, e.name)) for e in entries])
             issues.append(Issue(
                 "orphan_texture", "warning",
-                "%s تكستشر بلا قطعة" % label,
-                "توجد %d تكستشرات بلا ملف ydd يقابلها، وهي وزن ميت في المورد."
+                t("%s تكستشر بلا قطعة") % label,
+                t("توجد %d تكستشرات بلا ملف ydd يقابلها، وهي وزن ميت في المورد.")
                 % len(entries), fix, entries))
 
         if slot["ytd"]:
@@ -214,10 +216,10 @@ def diagnose(index: Index):
                     actions.append(("copy", source.path, target))
                 issues.append(Issue(
                     "variant_gap", "warning",
-                    "%s ينقصه تنويع %s" % (label, "، ".join(
+                    t("%s ينقصه تنويع %s") % (label, t("، ").join(
                         chr(97 + i) for i in missing)),
-                    "فجوة في حروف التنويعات تجعل اللعبة تقرأ تنويعًا غير موجود.",
-                    Fix("copy_variant", "نسخ أقرب تنويع سابق", actions),
+                    t("فجوة في حروف التنويعات تجعل اللعبة تقرأ تنويعًا غير موجود."),
+                    Fix("copy_variant", t("نسخ أقرب تنويع سابق"), actions),
                     list(slot["ytd"].values())))
 
     groups = {}
@@ -240,19 +242,19 @@ def diagnose(index: Index):
                                 _renamed(entry, new_index)))
         issues.append(Issue(
             "drawable_gap", "error",
-            "%s^%s ينقصه الرقم %s" % (model, component, "، ".join(
+            t("%s^%s ينقصه الرقم %s") % (model, component, t("، ").join(
                 "%03d" % n for n in missing[:6])),
-            "ترقيم القطع يجب أن يكون متصلًا من صفر، وإلا انزاحت الفهارس في "
-            "اللعبة فتختار قطعة وتظهر غيرها.",
-            Fix("renumber", "إعادة ترقيم %d ملف" % len(actions), actions)
+            t("ترقيم القطع يجب أن يكون متصلًا من صفر، وإلا انزاحت الفهارس في "
+            "اللعبة فتختار قطعة وتظهر غيرها."),
+            Fix("renumber", t("إعادة ترقيم %d ملف") % len(actions), actions)
             if actions else None))
 
     if index.unmatched:
         issues.append(Issue(
             "bad_name", "info",
-            "%d ملف خارج نمط التسمية" % len(index.unmatched),
-            "ملفات لا تطابق نمط model^component_NNN. قد تكون ملفات أساس "
-            "للموديل نفسه وليست ملابس."))
+            t("%d ملف خارج نمط التسمية") % len(index.unmatched),
+            t("ملفات لا تطابق نمط model^component_NNN. قد تكون ملفات أساس "
+            "للموديل نفسه وليست ملابس.")))
 
     issues.sort(key=lambda issue: (SEVERITY_ORDER[issue.severity], issue.title))
     return issues

@@ -30,6 +30,7 @@ DATAS = [
 # وحدات الحزمة تُستورد ديناميكيًا في main.py، فلا يراها المحلّل تلقائيًا
 HIDDEN = [
     "%s.main" % PKG,
+    "%s.i18n" % PKG,
     "%s.core.rsc7" % PKG,
     "%s.core.ytd_handler" % PKG,
     "%s.core.texture_handler" % PKG,

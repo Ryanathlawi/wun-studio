@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from ..i18n import t
+
 from PySide6.QtCore import QPropertyAnimation, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPen, QTransform
 from PySide6.QtWidgets import (QAbstractSpinBox, QColorDialog, QFrame,
@@ -297,7 +299,7 @@ class Field(QWidget):
 class SpinBox(QSpinBox):
     """حقل رقمي بلا أسهم، مع لاحقة وحدة."""
 
-    def __init__(self, minimum=0, maximum=99999, value=0, suffix=" بكسل",
+    def __init__(self, minimum=0, maximum=99999, value=0, suffix=t(" بكسل"),
                  parent=None):
         super().__init__(parent)
         self.setRange(minimum, maximum)
@@ -392,7 +394,7 @@ class ColorSwatch(QPushButton):
     def _choose(self):
         dlg = QColorDialog(self._color, self)
         dlg.setOption(QColorDialog.ShowAlphaChannel, True)
-        dlg.setWindowTitle("اختيار اللون")
+        dlg.setWindowTitle(t("اختيار اللون"))
         if dlg.exec():
             self.setColor(dlg.selectedColor())
 

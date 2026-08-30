@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from ..i18n import t
+
 import glob
 import os
 import sys
@@ -16,7 +18,7 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase
 # ---------------------------------------------------------------- الهوية
 
 APP_NAME = "Wun Studio"
-APP_TAGLINE = "محرّر تكستشرات GTA V و FiveM"
+APP_TAGLINE = t("محرّر تكستشرات GTA V و FiveM")
 AUTHOR = "Athlawi"
 VERSION = "1.0"
 COPYRIGHT = "© 2026 Athlawi"

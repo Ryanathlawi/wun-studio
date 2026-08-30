@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from ..i18n import t
+
 from PySide6.QtCore import (QEasingCurve, QPoint, QPointF, QRectF, Qt,
                             QTimer, QVariantAnimation)
 from PySide6.QtGui import (QColor, QLinearGradient, QPainter, QPainterPath,
@@ -19,6 +21,8 @@ from . import backdrop, icons, theme
 
 CARD_W = 274
 CARD_H = 184
+# ارتفاع ثابت للوصف يسع أربعة أسطر، لأن الإنجليزية تلفّ أكثر من العربية
+DESC_H = 66
 LIFT = 6.0
 # هامش داخلي يستوعب الارتفاع والهالة، فلا تُقصّ البطاقة من حوافها
 PAD = 12
@@ -59,7 +63,7 @@ class ToolCard(QWidget):
         head.addWidget(self.glyph)
         head.addStretch(1)
         if not ready:
-            soon = QLabel("قريبًا")
+            soon = QLabel(t("قريبًا"))
             soon.setStyleSheet(
                 "color: %s; background: %s; border-radius: 5px;"
                 "padding: 2px 8px; font-size: 8pt;" % (theme.WARN, "#2A2318"))
@@ -77,6 +81,10 @@ class ToolCard(QWidget):
         self.description.setObjectName("Hint")
         self.description.setWordWrap(True)
         self.description.setStyleSheet("background: transparent;")
+        self.description.setAlignment(Qt.AlignTop | Qt.AlignLeading)
+        # الوصف يأخذ ما تبقّى من ارتفاع البطاقة، فتبقى العناوين على سطر
+        # واحد مهما اختلف عدد أسطر الوصف بين اللغتين
+        self.description.setFixedHeight(DESC_H)
         column.addWidget(self.description)
 
     def _on_lift(self, value):
@@ -206,7 +214,7 @@ class HomeScreen(QWidget):
 
         footer = QHBoxLayout()
         footer.setContentsMargins(0, 0, 0, 0)
-        credit = QLabel("%s · الإصدار %s" % (theme.AUTHOR, theme.VERSION))
+        credit = QLabel(t("%s · الإصدار %s") % (theme.AUTHOR, theme.VERSION))
         credit.setObjectName("Hint")
         copyright_label = QLabel(theme.COPYRIGHT)
         copyright_label.setObjectName("Hint")

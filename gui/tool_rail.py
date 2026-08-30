@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from ..i18n import t
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QButtonGroup, QVBoxLayout, QWidget
 
@@ -15,17 +17,17 @@ from . import theme
 from .widgets import Divider, IconButton
 
 TOOLS = [
-    (cv.TOOL_BRUSH,   "brush",   "فرشاة",  "B"),
-    (cv.TOOL_ERASER,  "eraser",  "ممحاة",  "E"),
-    (cv.TOOL_TEXT,    "text",    "نص",     "T"),
-    (cv.TOOL_RECT,    "rect",    "مستطيل", "R"),
-    (cv.TOOL_ELLIPSE, "ellipse", "بيضاوي", "L"),
-    (cv.TOOL_LINE,    "line",    "خط",     "N"),
-    (cv.TOOL_FILL,    "fill",     "دلو تعبئة", "F"),
-    (cv.TOOL_GRADIENT, "gradient", "تدرّج لوني", "G"),
-    (cv.TOOL_SELECT,  "select",   "تحديد مستطيل", "M"),
-    (cv.TOOL_PICK,    "pick",     "ملقاط ألوان", "I"),
-    (cv.TOOL_PAN,     "pan",      "تحريك اللوحة", "H"),
+    (cv.TOOL_BRUSH,   "brush",   t("فرشاة"),  "B"),
+    (cv.TOOL_ERASER,  "eraser",  t("ممحاة"),  "E"),
+    (cv.TOOL_TEXT,    "text",    t("نص"),     "T"),
+    (cv.TOOL_RECT,    "rect",    t("مستطيل"), "R"),
+    (cv.TOOL_ELLIPSE, "ellipse", t("بيضاوي"), "L"),
+    (cv.TOOL_LINE,    "line",    t("خط"),     "N"),
+    (cv.TOOL_FILL,    "fill",     t("دلو تعبئة"), "F"),
+    (cv.TOOL_GRADIENT, "gradient", t("تدرّج لوني"), "G"),
+    (cv.TOOL_SELECT,  "select",   t("تحديد مستطيل"), "M"),
+    (cv.TOOL_PICK,    "pick",     t("ملقاط ألوان"), "I"),
+    (cv.TOOL_PAN,     "pan",      t("تحريك اللوحة"), "H"),
 ]
 
 
@@ -67,10 +69,10 @@ class ToolRail(QWidget):
         column.addSpacing(6)
 
         zoom = [
-            ("zoom_in",  "تكبير  (Ctrl +)",       self.zoomInRequested),
-            ("zoom_out", "تصغير  (Ctrl -)",       self.zoomOutRequested),
-            ("fit",      "ملء الشاشة  (Ctrl+0)",  self.fitRequested),
-            ("actual",   "الحجم الأصلي  (Ctrl+1)", self.actualSizeRequested),
+            ("zoom_in",  t("تكبير  (Ctrl +)"),       self.zoomInRequested),
+            ("zoom_out", t("تصغير  (Ctrl -)"),       self.zoomOutRequested),
+            ("fit",      t("ملء الشاشة  (Ctrl+0)"),  self.fitRequested),
+            ("actual",   t("الحجم الأصلي  (Ctrl+1)"), self.actualSizeRequested),
         ]
         for icon_name, tip, signal in zoom:
             btn = IconButton(icon_name, tip, size=theme.RAIL_W - 14, icon_size=18)

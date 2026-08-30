@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from ..i18n import t
+
 from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QLineEdit, QListWidget,
@@ -157,7 +159,7 @@ class TexturePanel(QWidget):
         head.setSpacing(7)
         glyph = QLabel()
         glyph.setPixmap(icons.pixmap("layers", 15, theme.TXT_DIM))
-        title = QLabel("التكستشرات")
+        title = QLabel(t("التكستشرات"))
         title.setObjectName("PanelTitle")
         self.count_label = QLabel("")
         self.count_label.setObjectName("Hint")
@@ -168,7 +170,7 @@ class TexturePanel(QWidget):
         outer.addLayout(head)
 
         self.search = QLineEdit()
-        self.search.setPlaceholderText("ابحث باسم التكستشر…")
+        self.search.setPlaceholderText(t("ابحث باسم التكستشر…"))
         self.search.setClearButtonEnabled(True)
         self.search.setFixedHeight(34)
         self.search.textChanged.connect(self._apply_filter)
@@ -182,7 +184,7 @@ class TexturePanel(QWidget):
         self.list.currentItemChanged.connect(self._on_current_changed)
         outer.addWidget(self.list, 1)
 
-        self.summary = QLabel("لم يُفتح أي ملف بعد")
+        self.summary = QLabel(t("لم يُفتح أي ملف بعد"))
         self.summary.setObjectName("Hint")
         self.summary.setWordWrap(True)
         outer.addWidget(self.summary)
@@ -194,7 +196,7 @@ class TexturePanel(QWidget):
         self._rows = {}
         self.list.clear()
         self.count_label.setText("")
-        self.summary.setText("لم يُفتح أي ملف بعد")
+        self.summary.setText(t("لم يُفتح أي ملف بعد"))
 
     def populate(self, ytd, progress=None):
         """تعبئة القائمة من قاموس محمّل."""
@@ -239,10 +241,10 @@ class TexturePanel(QWidget):
         self.count_label.setText("%d" % len(self._entries))
         if broken:
             self.summary.setText(
-                "%d تكستشر بصيغة غير مدعومة، ستُنسخ كما هي عند الحفظ."
+                t("%d تكستشر بصيغة غير مدعومة، ستُنسخ كما هي عند الحفظ.")
                 % broken)
         else:
-            self.summary.setText("كل التكستشرات قابلة للتحرير.")
+            self.summary.setText(t("كل التكستشرات قابلة للتحرير."))
 
         if self._entries:
             self.list.setCurrentRow(0)

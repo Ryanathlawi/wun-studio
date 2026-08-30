@@ -8,10 +8,13 @@
 
 from __future__ import annotations
 
+from .. import i18n
+from ..i18n import t
+
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QCursor
 from PySide6.QtWidgets import (QFrame, QGraphicsDropShadowEffect, QHBoxLayout,
-                               QLabel, QVBoxLayout, QWidget)
+                               QLabel, QPushButton, QVBoxLayout, QWidget)
 
 from . import icons, theme
 from .widgets import IconButton
@@ -27,6 +30,7 @@ class TitleBar(QWidget):
     closeRequested = Signal()
     aboutRequested = Signal()
     homeRequested = Signal()
+    languageRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -37,12 +41,12 @@ class TitleBar(QWidget):
         row.setContentsMargins(12, 0, 8, 0)
         row.setSpacing(10)
 
-        self.btn_home = IconButton("layers", "الرجوع إلى الأدوات", 30, 18)
+        self.btn_home = IconButton("layers", t("الرجوع إلى الأدوات"), 30, 18)
         self.btn_home.clicked.connect(self.homeRequested)
         self.btn_home.hide()
         row.addWidget(self.btn_home)
 
-        # اسم المنتج يبقى بالإنجليزية كما هو، والواجهة حوله عربية
+        # اسم المنتج لا يُترجم في أي لغة
         title = QLabel(theme.APP_NAME)
         title.setFont(theme.font(10, medium=True))
         title.setLayoutDirection(Qt.LeftToRight)
@@ -52,25 +56,37 @@ class TitleBar(QWidget):
         sep.setStyleSheet("color: %s;" % theme.BORDER_HI)
         row.addWidget(sep)
 
-        self.file_label = QLabel("لا يوجد ملف مفتوح")
+        self.file_label = QLabel(t("لا يوجد ملف مفتوح"))
         self.file_label.setObjectName("Hint")
         row.addWidget(self.file_label)
 
         self.dirty_dot = QLabel("●")
         self.dirty_dot.setStyleSheet("color: %s; font-size: 9pt;" % theme.WARN)
-        self.dirty_dot.setToolTip("توجد تعديلات غير محفوظة")
+        self.dirty_dot.setToolTip(t("توجد تعديلات غير محفوظة"))
         self.dirty_dot.hide()
         row.addWidget(self.dirty_dot)
 
         row.addStretch(1)
 
-        self.btn_about = IconButton("info", "عن البرنامج", 34, 16)
+        # زر اللغة يحمل اسم اللغة الأخرى بحروفها، فيُقرأ بلا ترجمة
+        self.btn_lang = QPushButton(i18n.LANGUAGES[i18n.other_language()])
+        self.btn_lang.setProperty("kind", "ghost")
+        self.btn_lang.setFont(theme.font(9, medium=True))
+        self.btn_lang.setCursor(Qt.PointingHandCursor)
+        self.btn_lang.setFocusPolicy(Qt.NoFocus)
+        self.btn_lang.setFixedHeight(26)
+        self.btn_lang.setLayoutDirection(Qt.LeftToRight)
+        self.btn_lang.setToolTip(t("تغيير لغة الواجهة  (يعيد تشغيل البرنامج)"))
+        self.btn_lang.clicked.connect(self.languageRequested)
+        row.addWidget(self.btn_lang)
+
+        self.btn_about = IconButton("info", t("عن البرنامج"), 34, 16)
         self.btn_about.clicked.connect(self.aboutRequested)
         row.addWidget(self.btn_about)
 
-        self.btn_min = IconButton("minimize", "تصغير", 34, 16)
-        self.btn_max = IconButton("maximize", "تكبير", 34, 15)
-        self.btn_close = IconButton("close", "إغلاق", 34, 16)
+        self.btn_min = IconButton("minimize", t("تصغير"), 34, 16)
+        self.btn_max = IconButton("maximize", t("تكبير"), 34, 15)
+        self.btn_close = IconButton("close", t("إغلاق"), 34, 16)
         self.btn_min.clicked.connect(self.minimizeRequested)
         self.btn_max.clicked.connect(self.maximizeRequested)
         self.btn_close.clicked.connect(self.closeRequested)
@@ -80,7 +96,7 @@ class TitleBar(QWidget):
     # ------------------------------------------------------------- عرض الحالة
 
     def set_file(self, name: str | None):
-        self.file_label.setText(name or "لا يوجد ملف مفتوح")
+        self.file_label.setText(name or t("لا يوجد ملف مفتوح"))
 
     def set_context(self, text: str | None):
         self.file_label.setText(text or "")
@@ -90,7 +106,7 @@ class TitleBar(QWidget):
 
     def set_maximized(self, maximized: bool):
         self.btn_max.set_icon_name("restore" if maximized else "maximize")
-        self.btn_max.setToolTip("استعادة" if maximized else "تكبير")
+        self.btn_max.setToolTip(t("استعادة") if maximized else t("تكبير"))
 
 
 class FramelessWindow(QWidget):
@@ -133,6 +149,7 @@ class FramelessWindow(QWidget):
         self.title_bar.closeRequested.connect(self.close)
         self.title_bar.aboutRequested.connect(self.show_about)
         self.title_bar.homeRequested.connect(self.show_home)
+        self.title_bar.languageRequested.connect(self.toggle_language)
         inner.addWidget(self.title_bar)
 
         self.body = QWidget()
@@ -148,6 +165,9 @@ class FramelessWindow(QWidget):
         pass
 
     def show_home(self):
+        pass
+
+    def toggle_language(self):
         pass
 
     # ------------------------------------------------------------- التكبير

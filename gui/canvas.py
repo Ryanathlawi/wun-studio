@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from ..i18n import t
+
 import numpy as np
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSizeF, Qt, Signal
 from PySide6.QtGui import (QBrush, QColor, QFont, QFontMetricsF, QImage,
@@ -819,7 +821,7 @@ class Canvas(QWidget):
             return
 
         if self.tool == TOOL_TEXT:
-            self.set_text_item(TextItem("نص جديد", img_pt, theme.FONT_FAMILY,
+            self.set_text_item(TextItem(t("نص جديد"), img_pt, theme.FONT_FAMILY,
                                         48, QColor(self.brush_color)))
             return
 

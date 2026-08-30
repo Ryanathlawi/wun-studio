@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..i18n import t
+
 import os
 
 import numpy as np
@@ -9,12 +11,12 @@ from . import ytd_writer as writer
 from .ytd_handler import YtdError, YtdFile
 
 PRESETS = {
-    "clothing": {"label": "ملابس", "max_size": 1024, "opaque_to_dxt1": True},
-    "vehicles": {"label": "سيارات", "max_size": 2048, "opaque_to_dxt1": True},
-    "maps": {"label": "خرائط", "max_size": 2048, "opaque_to_dxt1": False},
-    "aggressive": {"label": "ضغط أقصى", "max_size": 512,
+    "clothing": {"label": t("ملابس"), "max_size": 1024, "opaque_to_dxt1": True},
+    "vehicles": {"label": t("سيارات"), "max_size": 2048, "opaque_to_dxt1": True},
+    "maps": {"label": t("خرائط"), "max_size": 2048, "opaque_to_dxt1": False},
+    "aggressive": {"label": t("ضغط أقصى"), "max_size": 512,
                    "opaque_to_dxt1": True},
-    "formats_only": {"label": "الصيغ فقط", "max_size": 0,
+    "formats_only": {"label": t("الصيغ فقط"), "max_size": 0,
                      "opaque_to_dxt1": True},
 }
 
@@ -102,15 +104,15 @@ class FilePlan:
 
     @property
     def changed(self):
-        return any(t.changed for t in self.textures)
+        return any(x.changed for x in self.textures)
 
     @property
     def old_bytes(self):
-        return sum(t.old_bytes for t in self.textures)
+        return sum(x.old_bytes for x in self.textures)
 
     @property
     def new_bytes(self):
-        return sum(t.new_bytes for t in self.textures)
+        return sum(x.new_bytes for x in self.textures)
 
     @property
     def saved(self):
@@ -133,7 +135,7 @@ def plan_file(path, rules=None) -> FilePlan:
         width, height = _target_size(entry.width, entry.height,
                                      rules["max_size"], rules["min_size"])
         if (width, height) != (entry.width, entry.height):
-            reasons.append("تصغير %d→%d" % (max(entry.width, entry.height),
+            reasons.append(t("تصغير %d→%d") % (max(entry.width, entry.height),
                                             max(width, height)))
 
         fmt = entry.format
@@ -183,7 +185,7 @@ def _resize(image, width, height):
 
 def rebuild(file_plan: FilePlan, out_path) -> int:
     ytd = YtdFile.open(file_plan.path)
-    by_index = {t.index: t for t in ytd.textures}
+    by_index = {x.index: x for x in ytd.textures}
     specs = []
 
     for item in file_plan.textures:
@@ -206,7 +208,7 @@ def rebuild(file_plan: FilePlan, out_path) -> int:
                                         item.levels))
 
     if not specs:
-        raise writer.WriteError("لا توجد تكستشرات قابلة للكتابة في %s"
+        raise writer.WriteError(t("لا توجد تكستشرات قابلة للكتابة في %s")
                                 % file_plan.name)
     return writer.write(specs, out_path)
 
@@ -251,8 +253,9 @@ def summary(plans):
         "old_bytes": sum(p.old_bytes for p in plans if not p.error),
         "new_bytes": sum(p.new_bytes for p in plans if not p.error),
         "saved": sum(p.saved for p in plans if not p.error),
-        "downscaled": sum(1 for p in plans for t in p.textures
-                          if any("تصغير" in r for r in t.reasons)),
-        "reformatted": sum(1 for p in plans for t in p.textures
-                           if any("DXT1" in r for r in t.reasons)),
+        "downscaled": sum(1 for p in plans for x in p.textures
+                          if (x.width, x.height) != (x.entry.width,
+                                                     x.entry.height)),
+        "reformatted": sum(1 for p in plans for x in p.textures
+                           if x.format != x.entry.format),
     }

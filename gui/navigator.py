@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+from ..i18n import t
+
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
@@ -107,7 +109,7 @@ class Navigator(QWidget):
 
         if self._thumb is None:
             p.setPen(QColor(theme.TXT_MUTE))
-            p.drawText(self.rect(), Qt.AlignCenter, "لا يوجد تكستشر")
+            p.drawText(self.rect(), Qt.AlignCenter, t("لا يوجد تكستشر"))
             p.end()
             return
 

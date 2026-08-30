@@ -8,6 +8,8 @@ stream كلها في مورد واحد، وتولّد له fxmanifest.lua يجم
 
 from __future__ import annotations
 
+from ..i18n import t
+
 import os
 
 from PySide6.QtCore import Qt, Signal
@@ -24,8 +26,8 @@ from .widgets import Divider, EmptyState
 
 def _size(value):
     if value >= 1e9:
-        return "%.2f جيجا" % (value / 1e9)
-    return "%.0f م.ب" % (value / 1e6)
+        return t("%.2f جيجا") % (value / 1e9)
+    return t("%.0f م.ب") % (value / 1e6)
 
 
 class MergeTool(QWidget):
@@ -56,24 +58,24 @@ class MergeTool(QWidget):
         row.setContentsMargins(2, 0, 2, 0)
         row.setSpacing(7)
 
-        self.btn_add = _button("أضف موردًا…", "open", "primary",
-                               "اختر مجلد المورد (الذي يحوي stream)")
+        self.btn_add = _button(t("أضف موردًا…"), "open", "primary",
+                               t("اختر مجلد المورد (الذي يحوي stream)"))
         self.btn_add.clicked.connect(self.add_resource)
         row.addWidget(self.btn_add)
 
-        self.btn_remove = _button("احذف المحدَّد", "trash")
+        self.btn_remove = _button(t("احذف المحدَّد"), "trash")
         self.btn_remove.clicked.connect(self.remove_selected)
         self.btn_remove.setEnabled(False)
         row.addWidget(self.btn_remove)
 
-        self.btn_clear = _button("تفريغ", "close")
+        self.btn_clear = _button(t("تفريغ"), "close")
         self.btn_clear.clicked.connect(self.clear_all)
         self.btn_clear.setEnabled(False)
         row.addWidget(self.btn_clear)
 
         row.addWidget(Divider(vertical=True))
 
-        name_label = QLabel("اسم المورد الناتج")
+        name_label = QLabel(t("اسم المورد الناتج"))
         name_label.setObjectName("PanelTitle")
         row.addWidget(name_label)
         self.name_field = QLineEdit("athlawi_clothing")
@@ -83,9 +85,9 @@ class MergeTool(QWidget):
         self.name_field.textChanged.connect(self._refresh_manifest)
         row.addWidget(self.name_field)
 
-        self.move_check = QCheckBox("انقل بدل النسخ")
+        self.move_check = QCheckBox(t("انقل بدل النسخ"))
         self.move_check.setToolTip(
-            "أسرع ولا يحتاج مساحة إضافية، لكنه يُفرِّغ الموارد الأصلية.")
+            t("أسرع ولا يحتاج مساحة إضافية، لكنه يُفرِّغ الموارد الأصلية."))
         row.addWidget(self.move_check)
 
         row.addStretch(1)
@@ -106,7 +108,7 @@ class MergeTool(QWidget):
         head.setSpacing(7)
         glyph = QLabel()
         glyph.setPixmap(icons.pixmap("layers", 15, theme.TXT_DIM))
-        title = QLabel("الموارد المضافة")
+        title = QLabel(t("الموارد المضافة"))
         title.setObjectName("PanelTitle")
         self.count_label = QLabel("")
         self.count_label.setObjectName("Hint")
@@ -118,15 +120,15 @@ class MergeTool(QWidget):
 
         self.tree = QTreeWidget()
         self.tree.setColumnCount(3)
-        self.tree.setHeaderLabels(["المورد", "ملفات", "الحجم"])
+        self.tree.setHeaderLabels([t("المورد"), t("ملفات"), t("الحجم")])
         self.tree.setIndentation(16)
         self.tree.itemSelectionChanged.connect(self._on_selection)
         column.addWidget(self.tree, 1)
 
         self.empty = EmptyState(
-            "layers", "لم يُضَف أي مورد",
-            "أضف مجلدات الموارد التي تريد دمجها. كل مورد يجب أن يحوي مجلد "
-            "stream بداخله.")
+            "layers", t("لم يُضَف أي مورد"),
+            t("أضف مجلدات الموارد التي تريد دمجها. كل مورد يجب أن يحوي مجلد "
+            "stream بداخله."))
         column.addWidget(self.empty, 1)
         self.tree.hide()
         splitter.addWidget(left)
@@ -141,7 +143,7 @@ class MergeTool(QWidget):
         manifest_head.setSpacing(7)
         glyph2 = QLabel()
         glyph2.setPixmap(icons.pixmap("text", 15, theme.TXT_DIM))
-        title2 = QLabel("fxmanifest.lua المولّد")
+        title2 = QLabel(t("fxmanifest.lua المولّد"))
         title2.setObjectName("PanelTitle")
         manifest_head.addWidget(glyph2)
         manifest_head.addWidget(title2)
@@ -170,7 +172,7 @@ class MergeTool(QWidget):
         row.addWidget(self.summary_label)
         row.addStretch(1)
 
-        self.btn_merge = _button("ادمج في مورد واحد…", "batch", "primary")
+        self.btn_merge = _button(t("ادمج في مورد واحد…"), "batch", "primary")
         self.btn_merge.clicked.connect(self.do_merge)
         self.btn_merge.setEnabled(False)
         row.addWidget(self.btn_merge)
@@ -180,7 +182,7 @@ class MergeTool(QWidget):
 
     def add_resource(self):
         folder = QFileDialog.getExistingDirectory(
-            self, "اختر مجلد المورد (الذي يحوي stream)")
+            self, t("اختر مجلد المورد (الذي يحوي stream)"))
         if not folder:
             return
         folder = os.path.abspath(folder)
@@ -228,26 +230,26 @@ class MergeTool(QWidget):
             item.setIcon(0, icons.icon("layers", 14, theme.ACCENT))
 
             detail = QTreeWidgetItem(item)
-            detail.setText(0, "manifest: %s   ·   ملفات جذر: %s"
-                           % (resource.manifest_name or "لا يوجد",
-                              "، ".join(resource.root_files) or "لا شيء"))
+            detail.setText(0, t("manifest: %s   ·   ملفات جذر: %s")
+                           % (resource.manifest_name or t("لا يوجد"),
+                              t("، ").join(resource.root_files) or t("لا شيء")))
             detail.setForeground(0, theme.color("TXT_MUTE"))
             if resource.has_scripts:
                 warn = QTreeWidgetItem(item)
-                warn.setText(0, "⚠ هذا المورد فيه سكربتات — راجعها يدويًا "
-                                "بعد الدمج")
+                warn.setText(0, t("⚠ هذا المورد فيه سكربتات — راجعها يدويًا "
+                                "بعد الدمج"))
                 warn.setForeground(0, theme.color("WARN"))
 
         if self.plan and self.plan.stream_clashes:
             clash = QTreeWidgetItem(self.tree)
-            clash.setText(0, "تصادم أسماء — %d ملف"
+            clash.setText(0, t("تصادم أسماء — %d ملف")
                           % len(self.plan.stream_clashes))
             clash.setIcon(0, icons.icon("warn", 14, theme.WARN))
             clash.setFont(0, theme.font(10, medium=True))
             for name, first, second in self.plan.stream_clashes[:200]:
                 child = QTreeWidgetItem(clash)
                 child.setText(0, name)
-                child.setText(2, "يُؤخذ من %s ويُتجاهل من %s" % (first, second))
+                child.setText(2, t("يُؤخذ من %s ويُتجاهل من %s") % (first, second))
                 child.setForeground(0, theme.color("TXT_DIM"))
 
         has = bool(self.resources)
@@ -259,7 +261,7 @@ class MergeTool(QWidget):
         if self.plan:
             stats = merge.summary(self.plan)
             self.summary_label.setText(
-                "%d مورد · %d ملف فريد · %s · تصادم %d"
+                t("%d مورد · %d ملف فريد · %s · تصادم %d")
                 % (stats["resources"], stats["files"], _size(stats["bytes"]),
                    stats["stream_clashes"]))
             self.btn_merge.setEnabled(stats["files"] > 0)
@@ -287,45 +289,45 @@ class MergeTool(QWidget):
 
         name = self.name_field.text().strip()
         if not name:
-            show_info(self, "اسم ناقص", "اكتب اسمًا للمورد الناتج.")
+            show_info(self, t("اسم ناقص"), t("اكتب اسمًا للمورد الناتج."))
             return
 
         out = QFileDialog.getExistingDirectory(
-            self, "اختر المجلد الذي يُنشأ فيه المورد الناتج")
+            self, t("اختر المجلد الذي يُنشأ فيه المورد الناتج"))
         if not out:
             return
 
         target = os.path.join(out, name)
         for resource in self.plan.resources:
             if os.path.abspath(target) == resource.path:
-                show_info(self, "اختر مجلدًا آخر",
-                          "المسار الناتج يطابق أحد الموارد المصدر.")
+                show_info(self, t("اختر مجلدًا آخر"),
+                          t("المسار الناتج يطابق أحد الموارد المصدر."))
                 return
         if os.path.exists(target) and os.listdir(target):
-            if not ask(self, "المجلد موجود",
-                       "المجلد «%s» موجود وغير فارغ. المتابعة قد تخلط "
-                       "الملفات.\n\nهل تتابع؟" % target, "تابع", warning=True):
+            if not ask(self, t("المجلد موجود"),
+                       t("المجلد «%s» موجود وغير فارغ. المتابعة قد تخلط "
+                       "الملفات.\n\nهل تتابع؟") % target, t("تابع"), warning=True):
                 return
 
         stats = merge.summary(self.plan)
         moving = self.move_check.isChecked()
         warning = ""
         if moving:
-            warning = ("\n\n⚠ وضع النقل مفعّل: ستُفرَّغ مجلدات stream في "
-                       "الموارد الأصلية ولا يمكن التراجع.")
+            warning = (t("\n\n⚠ وضع النقل مفعّل: ستُفرَّغ مجلدات stream في "
+                       "الموارد الأصلية ولا يمكن التراجع."))
         if stats["scripts"]:
-            warning += ("\n\n⚠ %d من الموارد فيها سكربتات لم تُدمج — راجع "
-                        "fxmanifest يدويًا بعد الدمج." % stats["scripts"])
+            warning += (t("\n\n⚠ %d من الموارد فيها سكربتات لم تُدمج — راجع "
+                        "fxmanifest يدويًا بعد الدمج.") % stats["scripts"])
 
-        if not ask(self, "دمج الموارد",
-                   "سيُنشأ مورد باسم «%s» فيه %d ملف بحجم %s.%s\n\nهل تتابع؟"
+        if not ask(self, t("دمج الموارد"),
+                   t("سيُنشأ مورد باسم «%s» فيه %d ملف بحجم %s.%s\n\nهل تتابع؟")
                    % (name, stats["files"], _size(stats["bytes"]), warning),
-                   "ادمج", warning=bool(warning)):
+                   t("ادمج"), warning=bool(warning)):
             return
 
-        progress = QProgressDialog("جاري الدمج…", "إلغاء", 0,
+        progress = QProgressDialog(t("جاري الدمج…"), t("إلغاء"), 0,
                                    stats["files"], self)
-        progress.setWindowTitle("دمج الموارد")
+        progress.setWindowTitle(t("دمج الموارد"))
         progress.setWindowModality(Qt.WindowModal)
         progress.setMinimumDuration(0)
 
@@ -341,11 +343,11 @@ class MergeTool(QWidget):
             self.plan, out, name, step, moving, theme.AUTHOR)
         progress.close()
 
-        show_info(self, "تمّ الدمج",
-                  "أُنشئ المورد في:\n%s\n\nنُقل %d ملف%s.\n\n"
-                  "أضف اسم المورد إلى server.cfg ثم أعد تشغيل السيرفر."
+        show_info(self, t("تمّ الدمج"),
+                  t("أُنشئ المورد في:\n%s\n\nنُقل %d ملف%s.\n\n"
+                  "أضف اسم المورد إلى server.cfg ثم أعد تشغيل السيرفر.")
                   % (path, copied,
-                     "، وفشل %d" % len(failed) if failed else ""),
+                     t("، وفشل %d") % len(failed) if failed else ""),
                   "\n".join("%s: %s" % (n, e) for n, e in failed[:60])
                   if failed else None)
-        self.statusMessage.emit("دُمج %d ملف في %s" % (copied, name))
+        self.statusMessage.emit(t("دُمج %d ملف في %s") % (copied, name))

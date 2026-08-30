@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from ..i18n import t
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFontComboBox,
@@ -105,7 +107,7 @@ class PropertiesPanel(QWidget):
         head.setSpacing(7)
         glyph = QLabel()
         glyph.setPixmap(icons.pixmap("grid", 15, theme.TXT_DIM))
-        title = QLabel("الخصائص")
+        title = QLabel(t("الخصائص"))
         title.setObjectName("PanelTitle")
         head.addWidget(glyph)
         head.addWidget(title)
@@ -148,42 +150,42 @@ class PropertiesPanel(QWidget):
     # ------------------------------------------------------ الفرشاة والأشكال
 
     def _build_brush(self):
-        section = Section("الأدوات", "brush", expanded=True)
+        section = Section(t("الأدوات"), "brush", expanded=True)
 
-        self.size_slider = SliderField("الحجم", 1, 256, 16, " بكسل")
+        self.size_slider = SliderField(t("الحجم"), 1, 256, 16, t(" بكسل"))
         self.size_slider.valueChanged.connect(self.brushSizeChanged)
         section.add(self.size_slider)
 
-        self.opacity_slider = SliderField("الشفافية", 1, 100, 100, "٪")
+        self.opacity_slider = SliderField(t("الشفافية"), 1, 100, 100, t("٪"))
         self.opacity_slider.valueChanged.connect(
             lambda v: self.brushOpacityChanged.emit(v / 100.0))
         section.add(self.opacity_slider)
 
         self.color_swatch = ColorSwatch(QColor(theme.ACCENT))
         self.color_swatch.colorChanged.connect(self.brushColorChanged)
-        section.add(Field("اللون", self.color_swatch))
+        section.add(Field(t("اللون"), self.color_swatch))
 
-        self.antialias = QCheckBox("حواف ناعمة")
+        self.antialias = QCheckBox(t("حواف ناعمة"))
         self.antialias.setChecked(True)
         self.antialias.toggled.connect(self.antialiasChanged)
         section.add(self.antialias)
 
-        self.filled = QCheckBox("أشكال معبّأة")
+        self.filled = QCheckBox(t("أشكال معبّأة"))
         self.filled.toggled.connect(self.shapeFilledChanged)
         section.add(self.filled)
 
         section.add(Divider())
 
-        self.tolerance = SliderField("تسامح الدلو", 0, 128, 32)
+        self.tolerance = SliderField(t("تسامح الدلو"), 0, 128, 32)
         self.tolerance.valueChanged.connect(self.fillToleranceChanged)
         section.add(self.tolerance)
 
         self.gradient_swatch = ColorSwatch(QColor("#000000"))
         self.gradient_swatch.colorChanged.connect(self.gradientColorChanged)
-        section.add(Field("نهاية التدرّج", self.gradient_swatch))
+        section.add(Field(t("نهاية التدرّج"), self.gradient_swatch))
 
-        hint = QLabel("الدلو يملأ المنطقة المتشابهة حول نقطة النقر، والتدرّج "
-                      "يُرسم من اللون الأساسي إلى لون النهاية باتجاه سحبك.")
+        hint = QLabel(t("الدلو يملأ المنطقة المتشابهة حول نقطة النقر، والتدرّج "
+                      "يُرسم من اللون الأساسي إلى لون النهاية باتجاه سحبك."))
         hint.setObjectName("Hint")
         hint.setWordWrap(True)
         section.add(hint)
@@ -192,13 +194,13 @@ class PropertiesPanel(QWidget):
     # ---------------------------------------------------- التعديلات اللونية
 
     def _build_adjust(self):
-        section = Section("الألوان", "adjust", expanded=False)
+        section = Section(t("الألوان"), "adjust", expanded=False)
         self.adjust_section = section
 
-        self.adj_brightness = SliderField("السطوع", -100, 100, 0)
-        self.adj_contrast = SliderField("التباين", -100, 100, 0)
-        self.adj_saturation = SliderField("التشبّع", -100, 100, 0)
-        self.adj_hue = SliderField("الصبغة", -180, 180, 0, "°")
+        self.adj_brightness = SliderField(t("السطوع"), -100, 100, 0)
+        self.adj_contrast = SliderField(t("التباين"), -100, 100, 0)
+        self.adj_saturation = SliderField(t("التشبّع"), -100, 100, 0)
+        self.adj_hue = SliderField(t("الصبغة"), -180, 180, 0, "°")
         for widget in (self.adj_brightness, self.adj_contrast,
                        self.adj_saturation, self.adj_hue):
             widget.valueChanged.connect(
@@ -206,8 +208,8 @@ class PropertiesPanel(QWidget):
             section.add(widget)
 
         row = QHBoxLayout()
-        self.adj_grayscale = QCheckBox("تدرّج رمادي")
-        self.adj_invert = QCheckBox("عكس الألوان")
+        self.adj_grayscale = QCheckBox(t("تدرّج رمادي"))
+        self.adj_invert = QCheckBox(t("عكس الألوان"))
         for widget in (self.adj_grayscale, self.adj_invert):
             widget.toggled.connect(
                 lambda _v: self.adjustPreviewRequested.emit())
@@ -216,16 +218,16 @@ class PropertiesPanel(QWidget):
         section.add_layout(row)
 
         actions = QHBoxLayout()
-        self.adj_apply = _button("تطبيق", "check", "primary")
+        self.adj_apply = _button(t("تطبيق"), "check", "primary")
         self.adj_apply.clicked.connect(self.adjustApplyRequested)
-        self.adj_reset = _button("تصفير", "revert")
+        self.adj_reset = _button(t("تصفير"), "revert")
         self.adj_reset.clicked.connect(self.adjustResetRequested)
         actions.addWidget(self.adj_apply, 2)
         actions.addWidget(self.adj_reset, 1)
         section.add_layout(actions)
 
-        note = QLabel("المعاينة فورية على نسخة مصغّرة، و«تطبيق» يعيد الحساب "
-                      "على الدقة الكاملة.")
+        note = QLabel(t("المعاينة فورية على نسخة مصغّرة، و«تطبيق» يعيد الحساب "
+                      "على الدقة الكاملة."))
         note.setObjectName("Hint")
         note.setWordWrap(True)
         section.add(note)
@@ -255,71 +257,71 @@ class PropertiesPanel(QWidget):
     # ------------------------------------------------------- التحديد والعرض
 
     def _build_selection_view(self):
-        section = Section("العرض", "select", expanded=False)
+        section = Section(t("العرض"), "select", expanded=False)
 
         row = QHBoxLayout()
-        select_all = _button("تحديد الكل", "select")
+        select_all = _button(t("تحديد الكل"), "select")
         select_all.clicked.connect(self.selectAllRequested)
-        clear = _button("إلغاء التحديد", "close")
+        clear = _button(t("إلغاء التحديد"), "close")
         clear.clicked.connect(self.clearSelectionRequested)
         row.addWidget(select_all)
         row.addWidget(clear)
         section.add_layout(row)
 
-        crop_selection = _button("قصّ على التحديد", "crop")
+        crop_selection = _button(t("قصّ على التحديد"), "crop")
         crop_selection.clicked.connect(self.cropToSelectionRequested)
         section.add(crop_selection)
 
-        self.selection_label = QLabel("لا يوجد تحديد")
+        self.selection_label = QLabel(t("لا يوجد تحديد"))
         self.selection_label.setObjectName("Hint")
         section.add(self.selection_label)
 
         section.add(Divider())
 
-        self.grid_check = QCheckBox("إظهار شبكة المحاذاة")
+        self.grid_check = QCheckBox(t("إظهار شبكة المحاذاة"))
         self.grid_check.toggled.connect(self.gridToggled)
         section.add(self.grid_check)
 
-        self.grid_size = SliderField("مقاس الشبكة", 8, 512, 64, " بكسل")
+        self.grid_size = SliderField(t("مقاس الشبكة"), 8, 512, 64, t(" بكسل"))
         self.grid_size.valueChanged.connect(self.gridSizeChanged)
         section.add(self.grid_size)
 
-        self.compare_check = QCheckBox("مقارنة قبل / بعد")
+        self.compare_check = QCheckBox(t("مقارنة قبل / بعد"))
         self.compare_check.toggled.connect(self.compareToggled)
         section.add(self.compare_check)
 
-        self.compare_split = SliderField("موضع المقسّم", 0, 100, 50, "٪")
+        self.compare_split = SliderField(t("موضع المقسّم"), 0, 100, 50, t("٪"))
         self.compare_split.valueChanged.connect(self.compareSplitChanged)
         section.add(self.compare_split)
         return section
 
     def set_selection_text(self, rect):
         if rect is None:
-            self.selection_label.setText("لا يوجد تحديد")
+            self.selection_label.setText(t("لا يوجد تحديد"))
         else:
             self.selection_label.setText(
-                "التحديد: %d×%d عند س %d، ص %d"
+                t("التحديد: %d×%d عند س %d، ص %d")
                 % (rect.width(), rect.height(), rect.left(), rect.top()))
 
     # ----------------------------------------------------- المعالجة الدفعية
 
     def _build_batch(self):
-        section = Section("الدفعات", "batch", expanded=False)
+        section = Section(t("الدفعات"), "batch", expanded=False)
 
-        stamp = _button("ختم صورة على كل الملفات…", "image", "primary")
+        stamp = _button(t("ختم صورة على كل الملفات…"), "image", "primary")
         stamp.clicked.connect(self.batchStampRequested)
         section.add(stamp)
 
-        export_all = _button("تصدير كل التكستشرات PNG…", "export")
+        export_all = _button(t("تصدير كل التكستشرات PNG…"), "export")
         export_all.clicked.connect(self.batchExportRequested)
         section.add(export_all)
 
-        import_all = _button("استيراد مجلد PNG بمطابقة الأسماء…", "import")
+        import_all = _button(t("استيراد مجلد PNG بمطابقة الأسماء…"), "import")
         import_all.clicked.connect(self.batchImportRequested)
         section.add(import_all)
 
-        note = QLabel("الختم يلصق الصورة على كل الملفات المفتوحة بنفس الموضع "
-                      "النسبي، والاستيراد يستبدل كل تكستشر باسمه المطابق.")
+        note = QLabel(t("الختم يلصق الصورة على كل الملفات المفتوحة بنفس الموضع "
+                      "النسبي، والاستيراد يستبدل كل تكستشر باسمه المطابق."))
         note.setObjectName("Hint")
         note.setWordWrap(True)
         section.add(note)
@@ -328,17 +330,17 @@ class PropertiesPanel(QWidget):
     # ---------------------------------------------------------------- النص
 
     def _build_text(self):
-        section = Section("النص", "text", expanded=False)
+        section = Section(t("النص"), "text", expanded=False)
         self.text_section = section
 
-        hint = QLabel("اختر أداة النص ثم انقر على الكانفس. اسحب النص لتحريكه، "
-                      "وثبّته بـ Ctrl+Enter.")
+        hint = QLabel(t("اختر أداة النص ثم انقر على الكانفس. اسحب النص لتحريكه، "
+                      "وثبّته بـ Ctrl+Enter."))
         hint.setObjectName("Hint")
         hint.setWordWrap(True)
         section.add(hint)
 
         self.text_edit = QPlainTextEdit()
-        self.text_edit.setPlaceholderText("محتوى النص")
+        self.text_edit.setPlaceholderText(t("محتوى النص"))
         self.text_edit.setFixedHeight(66)
         self.text_edit.textChanged.connect(self.textEdited)
         section.add(self.text_edit)
@@ -356,19 +358,19 @@ class PropertiesPanel(QWidget):
         self.font_combo.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         self.font_combo.view().setMinimumWidth(280)
         self.font_combo.currentFontChanged.connect(lambda _f: self.textEdited.emit())
-        section.add(Field("الخط", self.font_combo))
+        section.add(Field(t("الخط"), self.font_combo))
 
-        self.font_size = SpinBox(4, 900, 48, " بكسل")
+        self.font_size = SpinBox(4, 900, 48, t(" بكسل"))
         self.font_size.valueChanged.connect(lambda _v: self.textEdited.emit())
-        section.add(Field("المقاس", self.font_size))
+        section.add(Field(t("المقاس"), self.font_size))
 
         self.text_color = ColorSwatch(QColor("#FFFFFF"))
         self.text_color.colorChanged.connect(lambda _c: self.textEdited.emit())
-        section.add(Field("اللون", self.text_color))
+        section.add(Field(t("اللون"), self.text_color))
 
         style_row = QHBoxLayout()
-        self.bold = QCheckBox("عريض")
-        self.italic = QCheckBox("مائل")
+        self.bold = QCheckBox(t("عريض"))
+        self.italic = QCheckBox(t("مائل"))
         self.bold.toggled.connect(self.textEdited)
         self.italic.toggled.connect(self.textEdited)
         style_row.addWidget(self.bold)
@@ -377,9 +379,9 @@ class PropertiesPanel(QWidget):
         section.add_layout(style_row)
 
         actions = QHBoxLayout()
-        self.apply_text_btn = _button("تثبيت النص", "check", "primary")
+        self.apply_text_btn = _button(t("تثبيت النص"), "check", "primary")
         self.apply_text_btn.clicked.connect(self.applyTextRequested)
-        self.cancel_text_btn = _button("إلغاء", "close")
+        self.cancel_text_btn = _button(t("إلغاء"), "close")
         self.cancel_text_btn.clicked.connect(self.cancelTextRequested)
         actions.addWidget(self.apply_text_btn, 2)
         actions.addWidget(self.cancel_text_btn, 1)
@@ -426,15 +428,15 @@ class PropertiesPanel(QWidget):
     # -------------------------------------------------------- الصورة العائمة
 
     def _build_placed_image(self):
-        section = Section("الصور", "image", expanded=False)
+        section = Section(t("الصور"), "image", expanded=False)
         self.image_section = section
 
-        self.import_image_btn = _button("رفع صورة…", "import", "primary")
+        self.import_image_btn = _button(t("رفع صورة…"), "import", "primary")
         self.import_image_btn.clicked.connect(self.importImageRequested)
         section.add(self.import_image_btn)
 
-        hint = QLabel("اسحب الصورة لتحريكها، أو اسحب زاوية لتغيير حجمها. "
-                      "ويمكنك ضبط المقاس رقميًا بالأسفل.")
+        hint = QLabel(t("اسحب الصورة لتحريكها، أو اسحب زاوية لتغيير حجمها. "
+                      "ويمكنك ضبط المقاس رقميًا بالأسفل."))
         hint.setObjectName("Hint")
         hint.setWordWrap(True)
         section.add(hint)
@@ -449,36 +451,36 @@ class PropertiesPanel(QWidget):
         for spin in (self.img_width, self.img_height, self.img_x, self.img_y):
             spin.valueChanged.connect(self._on_geometry)
         for row, (label, widget) in enumerate([
-                ("العرض", self.img_width), ("الارتفاع", self.img_height),
-                ("س", self.img_x), ("ص", self.img_y)]):
+                (t("العرض"), self.img_width), (t("الارتفاع"), self.img_height),
+                (t("س"), self.img_x), (t("ص"), self.img_y)]):
             tag = QLabel(label)
             tag.setObjectName("PanelTitle")
             grid.addWidget(tag, row // 2, (row % 2) * 2)
             grid.addWidget(widget, row // 2, (row % 2) * 2 + 1)
         section.add_layout(grid)
 
-        self.img_opacity = SliderField("الشفافية", 1, 100, 100, "٪")
+        self.img_opacity = SliderField(t("الشفافية"), 1, 100, 100, t("٪"))
         self.img_opacity.valueChanged.connect(self._on_geometry)
         section.add(self.img_opacity)
 
-        self.keep_aspect = QCheckBox("حافظ على النسبة")
+        self.keep_aspect = QCheckBox(t("حافظ على النسبة"))
         self.keep_aspect.setChecked(True)
         self.keep_aspect.toggled.connect(self.imageKeepAspectChanged)
         section.add(self.keep_aspect)
 
         row = QHBoxLayout()
-        self.img_fit_btn = _button("ملء التكستشر", "fit")
+        self.img_fit_btn = _button(t("ملء التكستشر"), "fit")
         self.img_fit_btn.clicked.connect(self.fitImageRequested)
-        self.img_reset_btn = _button("الحجم الأصلي", "actual")
+        self.img_reset_btn = _button(t("الحجم الأصلي"), "actual")
         self.img_reset_btn.clicked.connect(self.resetImageSizeRequested)
         row.addWidget(self.img_fit_btn)
         row.addWidget(self.img_reset_btn)
         section.add_layout(row)
 
         actions = QHBoxLayout()
-        self.apply_image_btn = _button("تثبيت الصورة", "check", "primary")
+        self.apply_image_btn = _button(t("تثبيت الصورة"), "check", "primary")
         self.apply_image_btn.clicked.connect(self.applyImageRequested)
-        self.discard_image_btn = _button("إلغاء", "close")
+        self.discard_image_btn = _button(t("إلغاء"), "close")
         self.discard_image_btn.clicked.connect(self.discardImageRequested)
         actions.addWidget(self.apply_image_btn, 2)
         actions.addWidget(self.discard_image_btn, 1)
@@ -535,7 +537,7 @@ class PropertiesPanel(QWidget):
     # ------------------------------------------------------- عمليات التكستشر
 
     def _build_texture_ops(self):
-        section = Section("التكستشر", "resize", expanded=True)
+        section = Section(t("التكستشر"), "resize", expanded=True)
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(8)
@@ -547,23 +549,23 @@ class PropertiesPanel(QWidget):
             grid.addWidget(btn, row, col, 1, span)
             return btn
 
-        cell(0, 0, "تدوير يمينًا", "rotate_cw",
+        cell(0, 0, t("تدوير يمينًا"), "rotate_cw",
              lambda: self.rotateRequested.emit(90))
-        cell(0, 1, "تدوير يسارًا", "rotate_ccw",
+        cell(0, 1, t("تدوير يسارًا"), "rotate_ccw",
              lambda: self.rotateRequested.emit(-90))
-        cell(1, 0, "قلب أفقي", "flip_h", lambda: self.flipRequested.emit(True))
-        cell(1, 1, "قلب رأسي", "flip_v", lambda: self.flipRequested.emit(False))
-        cell(2, 0, "تحجيم…", "resize", self.resizeRequested.emit)
-        cell(2, 1, "قص…", "crop", self.cropRequested.emit)
-        cell(3, 0, "استبدال بصورة…", "image",
+        cell(1, 0, t("قلب أفقي"), "flip_h", lambda: self.flipRequested.emit(True))
+        cell(1, 1, t("قلب رأسي"), "flip_v", lambda: self.flipRequested.emit(False))
+        cell(2, 0, t("تحجيم…"), "resize", self.resizeRequested.emit)
+        cell(2, 1, t("قص…"), "crop", self.cropRequested.emit)
+        cell(3, 0, t("استبدال بصورة…"), "image",
              self.importTextureRequested.emit, span=2)
-        self.clear_btn = cell(4, 0, "مسح", "trash", self.clearRequested.emit)
-        self.revert_btn = cell(4, 1, "استرجاع", "revert",
+        self.clear_btn = cell(4, 0, t("مسح"), "trash", self.clearRequested.emit)
+        self.revert_btn = cell(4, 1, t("استرجاع"), "revert",
                                self.revertRequested.emit, kind="danger")
         section.add_layout(grid)
 
-        note = QLabel("التدوير والتحجيم والقص تحافظ على أبعاد التكستشر الأصلية، "
-                      "وهو شرط لإعادة كتابته داخل ملف الـ ytd.")
+        note = QLabel(t("التدوير والتحجيم والقص تحافظ على أبعاد التكستشر الأصلية، "
+                      "وهو شرط لإعادة كتابته داخل ملف الـ ytd."))
         note.setObjectName("Hint")
         note.setWordWrap(True)
         section.add(note)
@@ -572,7 +574,7 @@ class PropertiesPanel(QWidget):
     # ------------------------------------------------------------- التصدير
 
     def _build_export(self):
-        section = Section("التصدير", "export", expanded=False)
+        section = Section(t("التصدير"), "export", expanded=False)
         row = QHBoxLayout()
         png = _button("PNG…", "export")
         png.clicked.connect(self.exportPngRequested)
@@ -582,8 +584,8 @@ class PropertiesPanel(QWidget):
         row.addWidget(dds)
         section.add_layout(row)
 
-        note = QLabel("تصدير DDS يكتب بيانات السطح كما هي داخل الملف، "
-                      "لا تعديلاتك غير المحفوظة.")
+        note = QLabel(t("تصدير DDS يكتب بيانات السطح كما هي داخل الملف، "
+                      "لا تعديلاتك غير المحفوظة."))
         note.setObjectName("Hint")
         note.setWordWrap(True)
         section.add(note)

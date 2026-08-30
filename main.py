@@ -67,20 +67,25 @@ def main():
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication
 
+    # اللغة تُقرأ قبل استيراد أي وحدة واجهة: بعض النصوص تُترجم وقت الاستيراد
+    # (عناوين البطاقات وقوائم الثوابت)، والتبديل يعيد التشغيل على أي حال.
+    i18n = importlib.import_module(_PKG + ".i18n")
+    i18n.load()
+
     theme = importlib.import_module(_PKG + ".gui.theme")
     window_module = importlib.import_module(_PKG + ".gui.main_window")
 
     # AA_UseHighDpiPixmaps صار سلوكًا افتراضيًا في Qt 6، وضبطه يطلق تحذير إهمال
     app = QApplication(sys.argv)
-    app.setApplicationName("YTD Texture Editor")
-    app.setOrganizationName("YTD Texture Editor")
+    app.setApplicationName(theme.APP_NAME)
+    app.setOrganizationName(theme.AUTHOR)
     app.setStyle("Fusion")
 
     # الخطوط قبل ورقة الأنماط: الأنماط تشير إلى اسم عائلة الخط المحمّل.
     theme.load_fonts()
     theme.apply_palette(app)
     app.setFont(theme.font(10))
-    app.setLayoutDirection(Qt.RightToLeft)
+    app.setLayoutDirection(Qt.RightToLeft if i18n.is_rtl() else Qt.LeftToRight)
     app.setStyleSheet(theme.qss())
 
     window = window_module.MainWindow()

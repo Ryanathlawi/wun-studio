@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..i18n import t
+
 import os
 import re
 import shutil
@@ -39,10 +41,10 @@ class Resource:
 
     def _load(self):
         if not os.path.isdir(self.path):
-            self.error = "المجلد غير موجود"
+            self.error = t("المجلد غير موجود")
             return
         if not os.path.isdir(self.stream):
-            self.error = "لا يوجد مجلد stream داخل المورد"
+            self.error = t("لا يوجد مجلد stream داخل المورد")
             return
 
         for entry in os.listdir(self.stream):
@@ -165,9 +167,9 @@ class MergePlan:
             lines.append("lua54 '%s'" % singles["lua54"])
         lines.append("")
         lines.append("author '%s'" % author)
-        lines.append("description 'دُمج بواسطة Wun Studio من %d مورد: %s'"
+        lines.append(t("description 'دُمج بواسطة Wun Studio من %d مورد: %s'")
                      % (len(self.resources),
-                        "، ".join(r.name for r in self.resources)))
+                        t("، ").join(r.name for r in self.resources)))
         lines.append("")
 
         if files:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..i18n import t
+
 import struct
 import zlib
 
@@ -79,7 +81,7 @@ def flags_from_size(size, high_bits=0):
         if bits is not None:
             return high_bits | bits | shift, base * pages
 
-    raise WriteError("الحجم %d أكبر من أن يُمثَّل في أعلام RSC7" % size)
+    raise WriteError(t("الحجم %d أكبر من أن يُمثَّل في أعلام RSC7") % size)
 
 
 class TextureSpec:
@@ -87,10 +89,10 @@ class TextureSpec:
     def __init__(self, name, image, fmt=tex.FMT_DXT5, levels=None):
         image = np.ascontiguousarray(image, dtype=np.uint8)
         if image.ndim != 3 or image.shape[2] != 4:
-            raise WriteError("التكستشر '%s' يجب أن يكون RGBA بشكل (h, w, 4)"
+            raise WriteError(t("التكستشر '%s' يجب أن يكون RGBA بشكل (h, w, 4)")
                              % name)
         if not tex.is_supported(fmt):
-            raise WriteError("الصيغة %s غير مدعومة للكتابة"
+            raise WriteError(t("الصيغة %s غير مدعومة للكتابة")
                              % tex.format_name(fmt))
 
         self.name = name
@@ -106,8 +108,8 @@ class TextureSpec:
     def from_raw(cls, name, data, width, height, fmt, levels):
         expected = tex.total_size(fmt, width, height, levels)
         if len(data) != expected:
-            raise WriteError("حجم البيانات الخام لـ '%s' لا يطابق المتوقع "
-                             "(%d مقابل %d)" % (name, len(data), expected))
+            raise WriteError(t("حجم البيانات الخام لـ '%s' لا يطابق المتوقع "
+                             "(%d مقابل %d)") % (name, len(data), expected))
         spec = cls.__new__(cls)
         spec.name = name
         spec.image = None
@@ -138,15 +140,15 @@ class TextureSpec:
 
 def build(specs, version=YTD_VERSION) -> bytes:
     if not specs:
-        raise WriteError("لا يمكن بناء قاموس بلا تكستشرات")
+        raise WriteError(t("لا يمكن بناء قاموس بلا تكستشرات"))
     if len(specs) > 0xFFFF:
-        raise WriteError("عدد التكستشرات يتجاوز الحد")
+        raise WriteError(t("عدد التكستشرات يتجاوز الحد"))
 
     ordered = sorted(specs, key=lambda spec: spec.hash)
     seen = set()
     for spec in ordered:
         if spec.hash in seen:
-            raise WriteError("اسمان يعطيان نفس الـ hash: %s" % spec.name)
+            raise WriteError(t("اسمان يعطيان نفس الـ hash: %s") % spec.name)
         seen.add(spec.hash)
 
     count = len(ordered)
@@ -253,7 +255,7 @@ def write(specs, path, version=YTD_VERSION):
                 os.remove(tmp)
             except OSError:
                 pass
-        raise WriteError("تعذّرت كتابة '%s':\n%s" % (path, exc)) from exc
+        raise WriteError(t("تعذّرت كتابة '%s':\n%s") % (path, exc)) from exc
     return len(data)
 
 
