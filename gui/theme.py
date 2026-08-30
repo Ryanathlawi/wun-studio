@@ -300,6 +300,29 @@ QScrollBar::handle:hover { background: @TXT_MUTE; }
 QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
 QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 
+/* ---------- الشاشة الرئيسية والشجرة ---------- */
+
+#Home { background: transparent; }
+
+QTreeWidget {
+    background: transparent;
+    border: none;
+    outline: none;
+}
+QTreeWidget::item {
+    padding: 6px 4px;
+    border-radius: 6px;
+}
+QTreeWidget::item:hover    { background: @BG_HOVER; }
+QTreeWidget::item:selected { background: @ACCENT_DEEP; color: @TXT; }
+QTreeWidget::indicator {
+    width: 15px; height: 15px;
+    border: 1px solid @BORDER_HI; border-radius: 4px; background: @BG_INPUT;
+}
+QTreeWidget::indicator:checked {
+    background: @ACCENT; border-color: @ACCENT;
+}
+
 /* ---------- تبويبات الملفات ---------- */
 
 #FileTabs::tab {

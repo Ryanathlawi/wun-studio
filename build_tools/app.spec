@@ -43,6 +43,12 @@ HIDDEN = [
     "%s.gui.texture_list" % PKG,
     "%s.gui.properties" % PKG,
     "%s.gui.main_window" % PKG,
+    "%s.gui.home" % PKG,
+    "%s.gui.clothing_tool" % PKG,
+    "%s.gui.navigator" % PKG,
+    "%s.gui.tabs" % PKG,
+    "%s.core.clothing" % PKG,
+    "%s.core.adjust" % PKG,
 ]
 
 # البرنامج يستعمل QtCore و QtGui و QtWidgets و QtSvg فقط

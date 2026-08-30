@@ -26,6 +26,7 @@ class TitleBar(QWidget):
     maximizeRequested = Signal()
     closeRequested = Signal()
     aboutRequested = Signal()
+    homeRequested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -36,9 +37,10 @@ class TitleBar(QWidget):
         row.setContentsMargins(12, 0, 8, 0)
         row.setSpacing(10)
 
-        mark = QLabel()
-        mark.setPixmap(icons.pixmap("layers", 19, theme.ACCENT, 1.7))
-        row.addWidget(mark)
+        self.btn_home = IconButton("layers", "الرجوع إلى الأدوات", 30, 18)
+        self.btn_home.clicked.connect(self.homeRequested)
+        self.btn_home.hide()
+        row.addWidget(self.btn_home)
 
         # اسم المنتج يبقى بالإنجليزية كما هو، والواجهة حوله عربية
         title = QLabel(theme.APP_NAME)
@@ -79,6 +81,9 @@ class TitleBar(QWidget):
 
     def set_file(self, name: str | None):
         self.file_label.setText(name or "لا يوجد ملف مفتوح")
+
+    def set_context(self, text: str | None):
+        self.file_label.setText(text or "")
 
     def set_dirty(self, dirty: bool):
         self.dirty_dot.setVisible(bool(dirty))
@@ -127,6 +132,7 @@ class FramelessWindow(QWidget):
         self.title_bar.maximizeRequested.connect(self.toggle_maximized)
         self.title_bar.closeRequested.connect(self.close)
         self.title_bar.aboutRequested.connect(self.show_about)
+        self.title_bar.homeRequested.connect(self.show_home)
         inner.addWidget(self.title_bar)
 
         self.body = QWidget()
@@ -139,6 +145,9 @@ class FramelessWindow(QWidget):
         self._press_global = QPoint()
 
     def show_about(self):
+        pass
+
+    def show_home(self):
         pass
 
     # ------------------------------------------------------------- التكبير

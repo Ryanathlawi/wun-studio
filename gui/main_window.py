@@ -15,8 +15,8 @@ from PySide6.QtGui import QColor, QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog,
                                QDialogButtonBox, QFileDialog, QFormLayout,
                                QHBoxLayout, QLabel, QMessageBox,
-                               QProgressDialog, QSplitter, QVBoxLayout,
-                               QWidget)
+                               QProgressDialog, QSplitter, QStackedWidget,
+                               QVBoxLayout, QWidget)
 
 from ..core import adjust
 from ..core import export_handler as exporter
@@ -25,6 +25,8 @@ from ..core.ytd_handler import YtdError, YtdFile
 from . import canvas as cv
 from . import icons, theme
 from .canvas import Canvas, numpy_to_qimage, qimage_to_numpy
+from .clothing_tool import ClothingTool
+from .home import HomeScreen
 from .navigator import Navigator
 from .properties import PropertiesPanel, _button
 from .shell import FramelessWindow
@@ -193,7 +195,40 @@ class MainWindow(FramelessWindow):
     # ------------------------------------------------------------- البناء
 
     def _build_ui(self):
-        root = QVBoxLayout(self.body)
+        shell = QVBoxLayout(self.body)
+        shell.setContentsMargins(0, 0, 0, 0)
+        shell.setSpacing(0)
+
+        self.stack = QStackedWidget()
+        shell.addWidget(self.stack)
+
+        self.home = HomeScreen()
+        self.home.add_tool(
+            "editor", "brush", "محرّر التكستشرات",
+            "افتح ملفات ytd، عدّل تكستشراتها، والصق الصور والنصوص، ثم احفظ "
+            "ملفًا صالحًا للعبة.")
+        self.home.add_tool(
+            "clothing", "select", "مدقّق الملابس",
+            "افحص مورد ملابس كاملًا: قطع بلا تكستشر، فجوات في الترقيم، "
+            "وملفات يتيمة — مع إصلاح تلقائي.")
+        self.home.add_tool(
+            "builder", "batch", "إنشاء YTD جديد",
+            "بناء قاموس تكستشرات من صور PNG مباشرة، بلا ملف أصلي.",
+            ready=False)
+        self.home.toolChosen.connect(self.open_tool)
+        self.stack.addWidget(self.home)
+
+        self.stack.addWidget(self._build_editor_page())
+
+        self.clothing = ClothingTool()
+        self.clothing.statusMessage.connect(self._status)
+        self.stack.addWidget(self.clothing)
+
+        self.stack.setCurrentIndex(0)
+
+    def _build_editor_page(self):
+        page = QWidget()
+        root = QVBoxLayout(page)
         root.setContentsMargins(10, 4, 10, 10)
         root.setSpacing(9)
 
@@ -240,6 +275,7 @@ class MainWindow(FramelessWindow):
 
         root.addWidget(self.splitter, 1)
         root.addWidget(self._build_status_bar())
+        return page
 
     def _build_navigator_panel(self):
         panel = QWidget()
@@ -479,6 +515,26 @@ class MainWindow(FramelessWindow):
         self.rail.set_tool(key)
         self._set_tool(key)
 
+    # ------------------------------------------------------- مكدّس الأدوات
+
+    def open_tool(self, key):
+        pages = {"editor": 1, "clothing": 2}
+        if key not in pages:
+            return
+        self.stack.setCurrentIndex(pages[key])
+        self.title_bar.btn_home.show()
+        if key == "editor":
+            doc = self.doc
+            self.title_bar.set_context(doc.name if doc else "لا يوجد ملف مفتوح")
+            self._status("محرّر التكستشرات")
+        else:
+            self.title_bar.set_context("مدقّق الملابس")
+
+    def show_home(self):
+        self.stack.setCurrentIndex(0)
+        self.title_bar.btn_home.hide()
+        self.title_bar.set_context("")
+
     # ------------------------------------------------------------ المساعدات
 
     def _update_actions(self):
@@ -624,6 +680,7 @@ class MainWindow(FramelessWindow):
 
         self.files.populate(self.docs)
         self.files.setVisible(len(self.docs) > 1)
+        self.open_tool("editor")
 
         if len(self.docs) > 1:
             self._status("فُتح %d ملف — اختر ملفًا من القائمة" % len(self.docs))
