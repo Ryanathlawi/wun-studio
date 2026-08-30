@@ -20,7 +20,7 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase
 APP_NAME = "Wun Studio"
 APP_TAGLINE = t("محرّر تكستشرات GTA V و FiveM")
 AUTHOR = "Athlawi"
-VERSION = "1.0"
+VERSION = "1.1"
 COPYRIGHT = "© 2026 Athlawi"
 
 # ---------------------------------------------------------------- الألوان
