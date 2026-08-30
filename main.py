@@ -86,10 +86,10 @@ def main():
     window = window_module.MainWindow()
     window.show()
 
-    # فتح ملف مُمرَّر في سطر الأوامر أو مُفلَت على الاختصار
+    # فتح ما مُرِّر في سطر الأوامر أو أُفلِت على الأيقونة: ملفات أو مجلدات
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
-    if args and os.path.isfile(args[0]):
-        window.load_ytd(args[0])
+    if args:
+        window.open_paths(args)
 
     sys.exit(app.exec())
 

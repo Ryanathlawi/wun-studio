@@ -164,10 +164,12 @@ python -m ytd_editor.main
 > The package name is derived from the folder name at runtime, so the project
 > works whatever you clone it into.
 
-You can also pass a file directly:
+You can also pass files or folders directly — the same paths work when
+dropped onto the executable:
 
 ```bash
 python main.py path/to/vehicle.ytd
+python main.py resource/stream
 ```
 
 ---

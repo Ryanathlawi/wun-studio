@@ -496,8 +496,34 @@ class MainWindow(FramelessWindow):
         return sorted(found)
 
     def load_ytd(self, path):
-        """نقطة الدخول لملف مُمرَّر في سطر الأوامر أو مُفلَت على الأيقونة."""
-        self._open_documents([path])
+        """نقطة الدخول لملف واحد."""
+        self.open_paths([path])
+
+    def open_paths(self, paths):
+        """
+        فتح ما مُرِّر في سطر الأوامر أو أُفلِت على أيقونة البرنامج.
+
+        يقبل خليطًا من الملفات والمجلدات: المجلد يُمسح بحثًا عن ملفات ytd،
+        فسحب مجلد stream كامل على الأيقونة يفتحه كما يفتحه زر «فتح مجلد».
+        """
+        collected = []
+        for path in paths:
+            if os.path.isdir(path):
+                collected += self._scan_folder(path)
+            elif os.path.isfile(path):
+                collected.append(path)
+
+        # إزالة التكرار مع الحفاظ على الترتيب
+        seen = set()
+        unique = []
+        for path in collected:
+            key = os.path.abspath(path).lower()
+            if key not in seen:
+                seen.add(key)
+                unique.append(path)
+
+        if unique:
+            self._open_documents(unique)
 
     def _open_documents(self, paths):
         if self._dirty_documents() or self._dirty:
