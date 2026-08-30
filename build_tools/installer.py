@@ -173,6 +173,18 @@ def installed_location():
         return None
 
 
+def uninstall_mode():
+    """
+    هل هذه النسخة مزيل تثبيت؟
+
+    المزيل نسخة من المثبّت نفسه، فلا يفرّقهما إلا الوسائط أو الاسم. الاعتماد
+    على الوسائط وحدها يجعل النقر المزدوج على uninstall.exe يفتح شاشة تثبيت.
+    """
+    if "--uninstall" in sys.argv:
+        return True
+    return os.path.basename(sys.executable).lower().startswith("uninstall")
+
+
 def schedule_removal(folder):
     """
     حذف مجلد التثبيت بعد خروج المزيل نفسه، فهو يعمل من داخله.
@@ -288,7 +300,7 @@ def run_gui():
     app.setLayoutDirection(Qt.RightToLeft)
     app.setStyleSheet(QSS)
 
-    uninstalling = "--uninstall" in sys.argv
+    uninstalling = uninstall_mode()
 
     window = QWidget()
     window.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
@@ -483,7 +495,7 @@ def run_gui():
 
 
 def main():
-    if "--uninstall" in sys.argv and "--silent" in sys.argv:
+    if uninstall_mode() and "--silent" in sys.argv:
         do_uninstall()
         return
     run_gui()
