@@ -174,7 +174,11 @@ python main.py path/to/vehicle.ytd
 
 ## The workflow
 
-1. **Open YTD** (`Ctrl+O`) and pick a `.ytd`.
+1. **Open** one or more `.ytd` files (`Ctrl+O`), or a whole folder
+   (`Ctrl+Shift+O`) — subfolders are scanned too. With more than one file open,
+   an "open files" panel appears above the texture list; `Ctrl+Tab` cycles
+   through them. Files are parsed only when selected, so opening a large map
+   folder is instant.
 2. The left sidebar fills with every texture in the dictionary — thumbnails,
    names, dimensions and format. Click one to load it.
 3. Edit it:
@@ -405,6 +409,7 @@ ytd_editor/
 │   └── export_handler.py    save orchestration, PNG/DDS export, image import
 ├── gui/                     no YTD format knowledge - Arabic, right-to-left
 │   ├── theme.py             design tokens, font loading, palette, stylesheet
+│   ├── file_list.py         open-files panel (multi-file / folder sessions)
 │   ├── icons.py             inline SVG icon factory (no icon assets needed)
 │   ├── widgets.py           reusable controls: sections, sliders, swatches
 │   ├── shell.py             frameless window + custom title bar

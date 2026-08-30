@@ -21,8 +21,9 @@ from ..core import export_handler as exporter
 from ..core.export_handler import ExportError
 from ..core.ytd_handler import YtdError, YtdFile
 from . import canvas as cv
-from . import icons, theme
+from . import theme
 from .canvas import Canvas
+from .file_list import FilePanel
 from .properties import PropertiesPanel, _button
 from .shell import FramelessWindow
 from .texture_list import TexturePanel
@@ -32,6 +33,8 @@ from .widgets import Divider, EmptyState, SpinBox
 IMAGE_FILTER = ("الصور (*.png *.jpg *.jpeg *.bmp *.tga *.dds *.webp);;"
                 "كل الملفات (*)")
 YTD_FILTER = "قاموس تكستشرات GTA V (*.ytd);;كل الملفات (*)"
+
+MAX_SCAN = 300          # سقف عدد الملفات عند مسح مجلد
 
 
 # --------------------------------------------------------------------------
@@ -110,6 +113,32 @@ class SizeDialog(QDialog):
 
 
 # --------------------------------------------------------------------------
+# مستند واحد
+# --------------------------------------------------------------------------
+
+class Document:
+    """
+    ملف ytd مفتوح.
+
+    يُقرأ الملف عند اختياره لا عند فتحه: مجلد خرائط كامل قد يضم عشرات
+    الملفات بحجم 3072×3072، وتحليلها كلها مقدّمًا يوقف البرنامج دقائق بلا
+    فائدة. لذلك يبقى ytd فارغًا حتى أول اختيار.
+    """
+
+    def __init__(self, path):
+        self.path = path
+        self.name = os.path.basename(path)
+        self.ytd: YtdFile | None = None
+        self.edits = {}                 # فهرس التكستشر -> مصفوفة RGBA
+        self.originals = {}             # فهرس التكستشر -> النسخة الأصلية
+        self.error: str | None = None
+
+    @property
+    def dirty(self) -> bool:
+        return bool(self.edits)
+
+
+# --------------------------------------------------------------------------
 # النافذة
 # --------------------------------------------------------------------------
 
@@ -120,16 +149,41 @@ class MainWindow(FramelessWindow):
         self.setWindowTitle("YTD Texture Editor")
         self.resize(1560, 960)
 
-        self.ytd: YtdFile | None = None
+        self.docs: list[Document] = []
+        self.doc_index: int | None = None
         self.current = None                 # TextureEntry
-        self.edits = {}                     # فهرس التكستشر -> مصفوفة RGBA
-        self.originals = {}                 # فهرس التكستشر -> النسخة الأصلية
-        self._dirty = False
+        self._dirty = False                 # الكانفس الحالي فيه تعديل غير مخزّن
 
         self._build_ui()
         self._connect()
         self._install_shortcuts()
         self._update_actions()
+
+    # ------------------------------------------------------------ المستندات
+
+    @property
+    def doc(self) -> Document | None:
+        if self.doc_index is None or not (0 <= self.doc_index < len(self.docs)):
+            return None
+        return self.docs[self.doc_index]
+
+    @property
+    def ytd(self) -> YtdFile | None:
+        doc = self.doc
+        return doc.ytd if doc is not None else None
+
+    @property
+    def edits(self) -> dict:
+        doc = self.doc
+        return doc.edits if doc is not None else {}
+
+    @property
+    def originals(self) -> dict:
+        doc = self.doc
+        return doc.originals if doc is not None else {}
+
+    def _dirty_documents(self):
+        return [d for d in self.docs if d.dirty]
 
     # ------------------------------------------------------------- البناء
 
@@ -144,9 +198,19 @@ class MainWindow(FramelessWindow):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(9)
 
+        side = QVBoxLayout()
+        side.setContentsMargins(0, 0, 0, 0)
+        side.setSpacing(9)
+        self.files = FilePanel()
+        self.files.hide()                   # تظهر عند فتح أكثر من ملف
         self.textures = TexturePanel()
-        self.textures.setFixedWidth(296)
-        row.addWidget(self.textures)
+        side.addWidget(self.files)
+        side.addWidget(self.textures, 1)
+
+        side_host = QWidget()
+        side_host.setLayout(side)
+        side_host.setFixedWidth(296)
+        row.addWidget(side_host)
 
         self.rail = ToolRail()
         row.addWidget(self.rail)
@@ -167,13 +231,23 @@ class MainWindow(FramelessWindow):
         row.setContentsMargins(2, 0, 2, 0)
         row.setSpacing(7)
 
-        self.btn_open = _button("فتح ملف YTD", "open", "primary",
-                                "فتح قاموس تكستشرات  (Ctrl+O)")
+        self.btn_open = _button("فتح ملفات", "open", "primary",
+                                "فتح ملف ytd أو عدة ملفات معًا  (Ctrl+O)")
+        self.btn_open_folder = _button("فتح مجلد", "layers", None,
+                                       "فتح كل ملفات ytd داخل مجلد  (Ctrl+Shift+O)")
+        row.addWidget(self.btn_open)
+        row.addWidget(self.btn_open_folder)
+
+        row.addWidget(Divider(vertical=True))
+
         self.btn_save = _button("حفظ باسم", "save", None,
                                 "كتابة ملف ytd جديد بتعديلاتك  (Ctrl+Shift+S)")
+        self.btn_save_all = _button("حفظ الكل", "export", None,
+                                    "كتابة كل الملفات المعدَّلة إلى مجلد  (Ctrl+Alt+S)")
         self.btn_save.setEnabled(False)
-        row.addWidget(self.btn_open)
+        self.btn_save_all.setEnabled(False)
         row.addWidget(self.btn_save)
+        row.addWidget(self.btn_save_all)
 
         row.addWidget(Divider(vertical=True))
 
@@ -209,7 +283,7 @@ class MainWindow(FramelessWindow):
         self.canvas = Canvas()
         self.empty = EmptyState(
             "layers", "لم يُفتح أي ملف بعد",
-            "افتح ملف ytd من الزر أعلاه، ثم اختر تكستشرًا من القائمة.")
+            "افتح ملفًا أو مجلدًا من الأزرار أعلاه، ثم اختر تكستشرًا من القائمة.")
         layout.addWidget(self.empty)
         layout.addWidget(self.canvas)
         self.canvas.hide()
@@ -240,8 +314,10 @@ class MainWindow(FramelessWindow):
     # -------------------------------------------------------------- الربط
 
     def _connect(self):
-        self.btn_open.clicked.connect(self.open_ytd)
+        self.btn_open.clicked.connect(self.open_files)
+        self.btn_open_folder.clicked.connect(self.open_folder)
         self.btn_save.clicked.connect(self.save_as_ytd)
+        self.btn_save_all.clicked.connect(self.save_all)
         self.btn_undo.clicked.connect(lambda: self.canvas.undo())
         self.btn_redo.clicked.connect(lambda: self.canvas.redo())
 
@@ -251,6 +327,7 @@ class MainWindow(FramelessWindow):
         self.rail.fitRequested.connect(self.canvas.fit_to_view)
         self.rail.actualSizeRequested.connect(self.canvas.reset_zoom)
 
+        self.files.fileSelected.connect(self.select_file)
         self.textures.textureSelected.connect(self.select_texture)
 
         c = self.canvas
@@ -297,8 +374,10 @@ class MainWindow(FramelessWindow):
 
     def _install_shortcuts(self):
         binds = [
-            ("Ctrl+O", self.open_ytd),
+            ("Ctrl+O", self.open_files),
+            ("Ctrl+Shift+O", self.open_folder),
             ("Ctrl+Shift+S", self.save_as_ytd),
+            ("Ctrl+Alt+S", self.save_all),
             ("Ctrl+Z", lambda: self.canvas.undo()),
             ("Ctrl+Y", lambda: self.canvas.redo()),
             ("Ctrl+Shift+Z", lambda: self.canvas.redo()),
@@ -309,6 +388,8 @@ class MainWindow(FramelessWindow):
             ("Ctrl+1", self.canvas.reset_zoom),
             ("Ctrl+Return", self._apply_floating),
             ("Ctrl+F", self.textures.search.setFocus),
+            ("Ctrl+Tab", lambda: self._cycle_file(1)),
+            ("Ctrl+Shift+Tab", lambda: self._cycle_file(-1)),
         ]
         for key, slot in binds:
             QShortcut(QKeySequence(key), self, activated=slot)
@@ -325,13 +406,15 @@ class MainWindow(FramelessWindow):
     # ------------------------------------------------------------ المساعدات
 
     def _update_actions(self):
-        has_ytd = self.ytd is not None
+        has_doc = self.doc is not None
         has_img = self.canvas.has_image()
-        self.btn_save.setEnabled(has_ytd)
+        self.btn_save.setEnabled(has_doc and self.ytd is not None)
+        self.btn_save_all.setEnabled(bool(self._dirty_documents()))
         self.properties.setEnabled(has_img)
         self.rail.setEnabled(has_img)
         self.canvas.setVisible(has_img)
         self.empty.setVisible(not has_img)
+        self.title_bar.set_dirty(bool(self._dirty_documents()) or self._dirty)
 
     def _on_history(self, can_undo, can_redo):
         self.btn_undo.setEnabled(can_undo)
@@ -344,6 +427,7 @@ class MainWindow(FramelessWindow):
             self._dirty = True
             self.textures.mark_edited(self.current.index, True)
         self.title_bar.set_dirty(True)
+        self.btn_save_all.setEnabled(True)
         self._refresh_status()
 
     def _refresh_status(self):
@@ -371,89 +455,175 @@ class MainWindow(FramelessWindow):
 
     # ---------------------------------------------------------------- الفتح
 
-    def open_ytd(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "فتح قاموس تكستشرات", "", YTD_FILTER)
-        if path:
-            self.load_ytd(path)
+    def open_files(self):
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "فتح ملفات تكستشرات", "", YTD_FILTER)
+        if paths:
+            self._open_documents(paths)
 
-    def load_ytd(self, path):
-        if self.ytd is not None and (self._dirty or self.edits):
-            if not ask(self, "تعديلات غير محفوظة",
-                       "لديك تعديلات لم تُحفظ. هل تفتح ملفًا آخر رغم ذلك؟",
-                       "افتح على أي حال"):
-                return
+    def open_folder(self):
+        folder = QFileDialog.getExistingDirectory(
+            self, "اختر مجلدًا يحوي ملفات ytd")
+        if not folder:
+            return
 
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
-            ytd = YtdFile.open(path)
-        except YtdError as exc:
+            paths = self._scan_folder(folder)
+        finally:
             QApplication.restoreOverrideCursor()
-            show_error(self, "تعذّر فتح الملف", str(exc))
-            return
-        except Exception as exc:
-            QApplication.restoreOverrideCursor()
-            show_error(self, "تعذّر فتح الملف",
-                       "خطأ غير متوقع أثناء قراءة الملف:\n\n%s\n\n%s"
-                       % (exc, traceback.format_exc(limit=3)))
-            return
 
-        self.ytd = ytd
-        self.edits = {}
-        self.originals = {}
+        if not paths:
+            show_info(self, "لا توجد ملفات",
+                      "لم يُعثر على أي ملف ytd داخل:\n\n%s" % folder)
+            return
+        if len(paths) >= MAX_SCAN:
+            show_info(self, "المجلد كبير",
+                      "المجلد يحوي أكثر من %d ملف؛ فُتحت أول %d فقط."
+                      % (MAX_SCAN, MAX_SCAN))
+        self._open_documents(paths)
+
+    @staticmethod
+    def _scan_folder(folder):
+        """مسح المجلد وما تحته بحثًا عن ملفات ytd، بسقف يمنع التعليق."""
+        found = []
+        for root, _dirs, files in os.walk(folder):
+            for name in files:
+                if name.lower().endswith(".ytd"):
+                    found.append(os.path.join(root, name))
+                    if len(found) >= MAX_SCAN:
+                        return sorted(found)
+        return sorted(found)
+
+    def load_ytd(self, path):
+        """نقطة الدخول لملف مُمرَّر في سطر الأوامر أو مُفلَت على الأيقونة."""
+        self._open_documents([path])
+
+    def _open_documents(self, paths):
+        if self._dirty_documents() or self._dirty:
+            if not ask(self, "تعديلات غير محفوظة",
+                       "لديك تعديلات لم تُحفظ. هل تفتح ملفات أخرى رغم ذلك؟",
+                       "افتح على أي حال"):
+                return
+
+        self.docs = [Document(p) for p in paths]
+        self.doc_index = None
         self.current = None
         self._dirty = False
         self.canvas.clear_document()
-        self.title_bar.set_dirty(False)
+        self.textures.clear()
+
+        self.files.populate(self.docs)
+        self.files.setVisible(len(self.docs) > 1)
+
+        if len(self.docs) > 1:
+            self._status("فُتح %d ملف — اختر ملفًا من القائمة" % len(self.docs))
+        self.select_file(0)
+
+    # -------------------------------------------------------- اختيار الملف
+
+    def _cycle_file(self, step):
+        if len(self.docs) < 2 or self.doc_index is None:
+            return
+        self.files.select((self.doc_index + step) % len(self.docs))
+
+    def _ensure_loaded(self, doc: Document) -> bool:
+        """قراءة الملف عند أول اختيار له. يرجع False إن تعذّرت قراءته."""
+        if doc.ytd is not None:
+            return True
+        if doc.error:
+            return False
+
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            doc.ytd = YtdFile.open(doc.path)
+        except YtdError as exc:
+            doc.error = str(exc)
+        except Exception as exc:
+            doc.error = ("خطأ غير متوقع أثناء قراءة الملف:\n\n%s\n\n%s"
+                         % (exc, traceback.format_exc(limit=3)))
+        finally:
+            QApplication.restoreOverrideCursor()
+        return doc.ytd is not None
+
+    def select_file(self, index):
+        if not (0 <= index < len(self.docs)):
+            return
+        if index == self.doc_index:
+            return
+
+        self._stash_current()
+        self.doc_index = index
+        doc = self.docs[index]
+        self.current = None
+        self._dirty = False
+        self.canvas.clear_document()
+        self.title_bar.set_file(doc.name)
+
+        if not self._ensure_loaded(doc):
+            self.textures.clear()
+            self.files.refresh(index, doc)
+            self.files.select(index)
+            self._update_actions()
+            self._refresh_status()
+            show_error(self, "تعذّر فتح «%s»" % doc.name, doc.error)
+            return
 
         progress = None
-        if len(ytd.textures) > 6:
+        if len(doc.ytd.textures) > 6:
             progress = QProgressDialog("جاري بناء معاينات التكستشرات…", None, 0,
-                                       len(ytd.textures), self)
-            progress.setWindowTitle(os.path.basename(path))
+                                       len(doc.ytd.textures), self)
+            progress.setWindowTitle(doc.name)
             progress.setWindowModality(Qt.WindowModal)
             progress.setMinimumDuration(400)
 
-        def on_progress(done, total):
+        def on_progress(done, _total):
             if progress is not None:
                 progress.setValue(done)
                 QApplication.processEvents()
 
         try:
-            self.textures.populate(ytd, on_progress)
+            self.textures.populate(doc.ytd, on_progress)
         finally:
             if progress is not None:
                 progress.close()
-            QApplication.restoreOverrideCursor()
 
-        self.title_bar.set_file(os.path.basename(path))
+        # إعادة وسم التكستشرات التي عُدِّلت سابقًا في هذا الملف
+        for texture_index, image in doc.edits.items():
+            self.textures.mark_edited(texture_index, True)
+            self.textures.update_thumbnail(texture_index, image)
+
+        self.files.refresh(index, doc)
+        self.files.select(index)
         self._update_actions()
-        self._status("فُتح %s — %d تكستشر"
-                     % (os.path.basename(path), len(ytd.textures)))
+        self._status("%s — %d تكستشر" % (doc.name, len(doc.ytd.textures)))
 
-        broken = [t for t in ytd.textures if not t.editable]
+        broken = [t for t in doc.ytd.textures if not t.editable]
         if broken:
             show_info(
                 self, "بعض التكستشرات غير مقروءة",
-                "%d من أصل %d تكستشر بصيغة لا يستطيع المحرر فكّها. تظهر "
-                "باللون البرتقالي وستُنسخ إلى الملف الناتج دون تغيير."
-                % (len(broken), len(ytd.textures)),
+                "%d من أصل %d تكستشر في «%s» بصيغة لا يستطيع المحرر فكّها. "
+                "تظهر باللون البرتقالي وستُنسخ إلى الملف الناتج دون تغيير."
+                % (len(broken), len(doc.ytd.textures), doc.name),
                 "\n\n".join("%s: %s" % (t.name, t.error) for t in broken))
 
-    # -------------------------------------------------------------- التكستشر
+    # ------------------------------------------------------------- التكستشر
 
     def _stash_current(self):
-        """حفظ حالة الكانفس في قائمة التعديلات قبل الانتقال لتكستشر آخر."""
-        if self.current is not None and self._dirty:
+        """حفظ حالة الكانفس في قائمة تعديلات الملف قبل الانتقال."""
+        doc = self.doc
+        if doc is not None and self.current is not None and self._dirty:
             img = self.canvas.to_numpy()
             if img is not None:
-                self.edits[self.current.index] = img
+                doc.edits[self.current.index] = img
                 self.textures.update_thumbnail(self.current.index, img)
+                self.files.refresh(self.doc_index, doc)
 
     def select_texture(self, index):
-        if self.ytd is None:
+        doc = self.doc
+        if doc is None or doc.ytd is None:
             return
-        entry = next((t for t in self.ytd.textures if t.index == index), None)
+        entry = next((t for t in doc.ytd.textures if t.index == index), None)
         if entry is None:
             return
         if self.current is not None and entry.index == self.current.index:
@@ -472,39 +642,40 @@ class MainWindow(FramelessWindow):
             return
 
         try:
-            if entry.index in self.edits:
-                image = self.edits[entry.index]
-            else:
-                image = self.ytd.decode(entry)
-            if entry.index not in self.originals:
-                self.originals[entry.index] = self.ytd.decode(entry)
+            image = doc.edits.get(entry.index)
+            if image is None:
+                image = doc.ytd.decode(entry)
+            if entry.index not in doc.originals:
+                doc.originals[entry.index] = doc.ytd.decode(entry)
         except YtdError as exc:
             show_error(self, "تعذّر فكّ التكستشر", str(exc))
             return
 
         self.current = entry
-        self._dirty = entry.index in self.edits
+        self._dirty = entry.index in doc.edits
         self.canvas.load_numpy(image)
         self._refresh_status()
         self._update_actions()
         self._status("%s — %s" % (entry.name, entry.format_name))
 
     def _revert_texture(self):
-        if self.current is None:
+        doc = self.doc
+        if doc is None or self.current is None:
             return
-        original = self.originals.get(self.current.index)
+        original = doc.originals.get(self.current.index)
         if original is None:
             return
         if not ask(self, "استرجاع التكستشر",
                    "هل تتجاهل كل تعديلاتك على «%s» وتعيد تحميله من الملف؟"
                    % self.current.name, "استرجع"):
             return
-        self.edits.pop(self.current.index, None)
+        doc.edits.pop(self.current.index, None)
         self.textures.mark_edited(self.current.index, False)
         self.textures.update_thumbnail(self.current.index, original)
+        self.files.refresh(self.doc_index, doc)
         self._dirty = False
         self.canvas.load_numpy(original)
-        self.title_bar.set_dirty(bool(self.edits))
+        self._update_actions()
         self._refresh_status()
 
     # ---------------------------------------------------------------- النص
@@ -679,14 +850,15 @@ class MainWindow(FramelessWindow):
         self._status("صُدِّر %s" % os.path.basename(path))
 
     def _export_dds(self):
-        if self.current is None or self.ytd is None:
+        doc = self.doc
+        if self.current is None or doc is None or doc.ytd is None:
             return
         path, _ = QFileDialog.getSaveFileName(
             self, "تصدير DDS", self.current.name + ".dds", "تكستشر DDS (*.dds)")
         if not path:
             return
         try:
-            raw = self.ytd.raw_data(self.current)
+            raw = doc.ytd.raw_data(self.current)
             exporter.export_dds(self.current, raw, path)
         except (ExportError, YtdError) as exc:
             show_error(self, "فشل التصدير", str(exc))
@@ -698,19 +870,19 @@ class MainWindow(FramelessWindow):
     # --------------------------------------------------------------- الحفظ
 
     def save_as_ytd(self):
-        if self.ytd is None:
+        doc = self.doc
+        if doc is None or doc.ytd is None:
             return
         self._stash_current()
 
-        if not self.edits:
+        if not doc.edits:
             if not ask(self, "لا توجد تعديلات",
-                       "لم يُعدَّل أي تكستشر. هل تحفظ نسخة من الملف رغم ذلك؟",
-                       "احفظ نسخة"):
+                       "لم يُعدَّل أي تكستشر في «%s». هل تحفظ نسخة منه رغم ذلك؟"
+                       % doc.name, "احفظ نسخة"):
                 return
 
-        base = os.path.splitext(os.path.basename(self.ytd.path or "textures"))[0]
-        default = os.path.join(os.path.dirname(self.ytd.path or ""),
-                               base + "_edited.ytd")
+        base = os.path.splitext(doc.name)[0]
+        default = os.path.join(os.path.dirname(doc.path), base + "_edited.ytd")
         path, _ = QFileDialog.getSaveFileName(self, "حفظ باسم", default,
                                               YTD_FILTER)
         if not path:
@@ -719,48 +891,19 @@ class MainWindow(FramelessWindow):
             path += ".ytd"
 
         allow_overwrite = False
-        if self.ytd.path and os.path.abspath(path).lower() == \
-                os.path.abspath(self.ytd.path).lower():
+        if os.path.abspath(path).lower() == os.path.abspath(doc.path).lower():
             if not ask(self, "الكتابة فوق الملف الأصلي",
                        "سيُكتب فوق الملف الذي فتحته:\n\n%s\n\n"
-                       "لا يمكن التراجع بعد الكتابة. هل تتابع؟" % self.ytd.path,
+                       "لا يمكن التراجع بعد الكتابة. هل تتابع؟" % doc.path,
                        "اكتب فوقه", warning=True):
                 return
             allow_overwrite = True
 
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        try:
-            applied, problems = exporter.save_ytd_as(
-                self.ytd, self.edits, path, allow_overwrite_source=allow_overwrite)
-        except ExportError as exc:
-            QApplication.restoreOverrideCursor()
-            show_error(self, "فشل الحفظ", str(exc))
+        applied, problems = self._write_document(doc, path, allow_overwrite)
+        if applied is None:
             return
-        except Exception as exc:
-            QApplication.restoreOverrideCursor()
-            show_error(self, "فشل الحفظ",
-                       "خطأ غير متوقع أثناء كتابة الملف:\n\n%s\n\n%s"
-                       % (exc, traceback.format_exc(limit=3)))
-            return
-        finally:
-            if QApplication.overrideCursor() is not None:
-                QApplication.restoreOverrideCursor()
 
-        self._after_save(path, applied, problems)
-
-    def _after_save(self, path, applied, problems):
-        """
-        تصفير حالة التعديل بعد حفظ ناجح.
-
-        بدون هذا يظل البرنامج يعتبر التعديلات معلّقة، فيسأل عن «تغييرات غير
-        محفوظة» عند الإغلاق رغم أن كل شيء كُتب فعلًا.
-        """
-        self.edits = {}
-        self._dirty = False
-        self.textures.clear_all_edited()
-        self.title_bar.set_dirty(False)
-        self._refresh_status()
-
+        self._clear_document_edits(doc)
         message = "كُتب %s\n\nحُدِّث %d تكستشر." % (os.path.basename(path),
                                                    len(applied))
         if problems:
@@ -769,13 +912,112 @@ class MainWindow(FramelessWindow):
             show_info(self, "تم الحفظ", message)
         self._status("حُفظ %s" % os.path.basename(path))
 
+    def save_all(self):
+        """كتابة كل الملفات المعدَّلة إلى مجلد واحد بأسمائها الأصلية."""
+        self._stash_current()
+        dirty = self._dirty_documents()
+        if not dirty:
+            show_info(self, "لا توجد تعديلات",
+                      "لم يُعدَّل أي ملف من الملفات المفتوحة.")
+            return
+
+        folder = QFileDialog.getExistingDirectory(
+            self, "اختر مجلدًا لحفظ %d ملف معدَّل" % len(dirty))
+        if not folder:
+            return
+
+        clashes = [d.name for d in dirty
+                   if os.path.abspath(os.path.dirname(d.path)).lower()
+                   == os.path.abspath(folder).lower()]
+        if clashes:
+            if not ask(self, "الكتابة فوق الملفات الأصلية",
+                       "المجلد المختار هو نفسه مجلد %d من الملفات المفتوحة، "
+                       "وستُكتب نسخها الأصلية فوقها:\n\n%s\n\n"
+                       "لا يمكن التراجع. هل تتابع؟"
+                       % (len(clashes), "\n".join(clashes[:8])),
+                       "اكتب فوقها", warning=True):
+                return
+
+        written, failed, warnings = [], [], []
+        progress = QProgressDialog("جاري حفظ الملفات…", None, 0, len(dirty), self)
+        progress.setWindowTitle("حفظ الكل")
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+
+        for i, doc in enumerate(dirty):
+            progress.setValue(i)
+            progress.setLabelText("جاري حفظ %s…" % doc.name)
+            QApplication.processEvents()
+
+            out = os.path.join(folder, doc.name)
+            same = os.path.abspath(out).lower() == os.path.abspath(doc.path).lower()
+            applied, problems = self._write_document(doc, out, same, quiet=True)
+            if applied is None:
+                failed.append(doc.name)
+                continue
+            written.append((doc.name, len(applied)))
+            warnings += ["%s: %s" % (doc.name, p) for p in problems]
+            self._clear_document_edits(doc)
+
+        progress.close()
+
+        summary = "كُتب %d ملف في:\n%s" % (len(written), folder)
+        if failed:
+            summary += "\n\nتعذّر حفظ %d ملف." % len(failed)
+        detail = "\n".join("%s — %d تكستشر" % (n, c) for n, c in written)
+        if failed:
+            detail += "\n\nفشل:\n" + "\n".join(failed)
+        if warnings:
+            detail += "\n\nتنبيهات:\n" + "\n\n".join(warnings)
+        show_info(self, "تم الحفظ", summary, detail or None)
+        self._status("حُفظ %d ملف في %s" % (len(written), folder))
+
+    def _write_document(self, doc: Document, path, allow_overwrite, quiet=False):
+        """كتابة ملف واحد. يرجع (applied, problems) أو (None, None) عند الفشل."""
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            return exporter.save_ytd_as(doc.ytd, doc.edits, path,
+                                        allow_overwrite_source=allow_overwrite)
+        except ExportError as exc:
+            if not quiet:
+                show_error(self, "فشل الحفظ", str(exc))
+            return None, None
+        except Exception as exc:
+            if not quiet:
+                show_error(self, "فشل الحفظ",
+                           "خطأ غير متوقع أثناء كتابة الملف:\n\n%s\n\n%s"
+                           % (exc, traceback.format_exc(limit=3)))
+            return None, None
+        finally:
+            if QApplication.overrideCursor() is not None:
+                QApplication.restoreOverrideCursor()
+
+    def _clear_document_edits(self, doc: Document):
+        """
+        تصفير حالة التعديل بعد حفظ ناجح.
+
+        بدون هذا يظل البرنامج يعتبر التعديلات معلّقة، فيسأل عن «تغييرات غير
+        محفوظة» عند الإغلاق رغم أن كل شيء كُتب فعلًا.
+        """
+        doc.edits = {}
+        if doc is self.doc:
+            self._dirty = False
+            self.textures.clear_all_edited()
+            self._refresh_status()
+        if doc in self.docs:
+            self.files.refresh(self.docs.index(doc), doc)
+        self._update_actions()
+
     # -------------------------------------------------------------- الإغلاق
 
     def closeEvent(self, ev):
         self._stash_current()
-        if self.edits:
+        dirty = self._dirty_documents()
+        if dirty:
+            names = "\n".join(d.name for d in dirty[:8])
             if not ask(self, "تعديلات غير محفوظة",
-                       "لديك تعديلات لم تُحفظ. هل تخرج دون حفظها؟",
+                       "لديك تعديلات لم تُحفظ في %d ملف:\n\n%s\n\n"
+                       "هل تخرج دون حفظها؟" % (len(dirty), names),
                        "اخرج دون حفظ", warning=True):
                 ev.ignore()
                 return
