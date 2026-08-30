@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import glob
 import os
+import sys
 
 from PySide6.QtGui import QColor, QFont, QFontDatabase
 
@@ -44,8 +45,28 @@ RAIL_W = 54                 # عرض ريل الأدوات
 TITLEBAR_H = 42
 RESIZE_EDGE = 6             # سماكة حافة تغيير حجم النافذة
 
-_ASSETS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                       "assets", "fonts")
+def _assets_dir() -> str:
+    """
+    مسار مجلد الخطوط.
+
+    عند التشغيل من المصدر يكون بجوار الحزمة. وعند التشغيل من ملف exe مبنيّ
+    بـ PyInstaller تُفكّ الموارد إلى مجلد مؤقّت يشير إليه sys._MEIPASS، فنجرّبه
+    أولًا ثم نرجع للمسار العادي.
+    """
+    package_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    bundle = getattr(sys, "_MEIPASS", None)
+    if bundle:
+        packed = os.path.join(bundle, os.path.basename(package_root),
+                              "assets", "fonts")
+        if os.path.isdir(packed):
+            return packed
+        packed = os.path.join(bundle, "assets", "fonts")
+        if os.path.isdir(packed):
+            return packed
+    return os.path.join(package_root, "assets", "fonts")
+
+
+_ASSETS = _assets_dir()
 
 # اسم عائلة الخط بعد التحميل - يُملأ في load_fonts()
 FONT_FAMILY = "Segoe UI"

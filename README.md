@@ -138,7 +138,14 @@ pip install -r requirements.txt
 
 ## Running
 
-On Windows, double-click `run.bat` (you can also drop a `.ytd` file onto it).
+On Windows, the simplest route is the standalone executable — no Python
+install required. Build it once with:
+
+```bash
+.venv\Scripts\pyinstaller.exe build_tools\app.spec --noconfirm
+```
+
+and the result lands in `dist/`. Double-click it, or drop a `.ytd` file onto it.
 
 From a terminal:
 
@@ -388,7 +395,7 @@ compressor doing real work — it isn't hung.
 ```
 ytd_editor/
 ├── main.py                  entry point + dependency check
-├── run.bat                  one-click launcher (Windows)
+├── build_tools/             PyInstaller spec, entry point, icon generator
 ├── requirements.txt
 ├── README.md
 ├── core/                    no Qt imports - usable as a headless library

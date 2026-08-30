@@ -20,9 +20,10 @@ _PARENT = os.path.dirname(_PKG_DIR)
 if _PARENT not in sys.path:
     sys.path.insert(0, _PARENT)
 
-# اسم الحزمة يُشتق من اسم المجلد الفعلي بدل كتابته حرفيًا، فيعمل المشروع
-# مهما كان اسم المجلد الذي استُنسخ إليه.
-_PKG = os.path.basename(_PKG_DIR)
+# اسم الحزمة يُشتق من السياق بدل كتابته حرفيًا، فيعمل المشروع مهما كان اسم
+# المجلد الذي استُنسخ إليه. عند التشغيل كوحدة داخل حزمة - وهو ما يحدث في
+# ملف exe المبنيّ - يكون __package__ هو الاسم الصحيح مباشرة.
+_PKG = __package__ or os.path.basename(_PKG_DIR)
 
 
 REQUIREMENTS = [
@@ -71,7 +72,7 @@ def main():
 
     # AA_UseHighDpiPixmaps صار سلوكًا افتراضيًا في Qt 6، وضبطه يطلق تحذير إهمال
     app = QApplication(sys.argv)
-    app.setApplicationName("محرّر تكستشرات YTD")
+    app.setApplicationName("YTD Texture Editor")
     app.setOrganizationName("YTD Texture Editor")
     app.setStyle("Fusion")
 

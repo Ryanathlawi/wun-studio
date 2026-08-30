@@ -12,3 +12,8 @@ assets/fonts/*.otf
 # مخرجات مؤقتة
 *.tmp
 *_edited.ytd
+
+# مخرجات بناء الـ exe
+build/
+dist/
+build_tools/_pkg.py

@@ -117,7 +117,7 @@ class MainWindow(FramelessWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("محرّر تكستشرات YTD")
+        self.setWindowTitle("YTD Texture Editor")
         self.resize(1560, 960)
 
         self.ytd: YtdFile | None = None

@@ -39,8 +39,10 @@ class TitleBar(QWidget):
         mark.setPixmap(icons.pixmap("layers", 19, theme.ACCENT, 1.7))
         row.addWidget(mark)
 
-        title = QLabel("محرّر تكستشرات YTD")
+        # اسم المنتج يبقى بالإنجليزية كما هو، والواجهة حوله عربية
+        title = QLabel("YTD Texture Editor")
         title.setFont(theme.font(10, medium=True))
+        title.setLayoutDirection(Qt.LeftToRight)
         row.addWidget(title)
 
         sep = QLabel("|")
