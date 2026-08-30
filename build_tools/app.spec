@@ -52,6 +52,8 @@ HIDDEN = [
     "%s.core.optimize" % PKG,
     "%s.core.ytd_writer" % PKG,
     "%s.gui.optimize_tool" % PKG,
+    "%s.gui.merge_tool" % PKG,
+    "%s.core.merge" % PKG,
 ]
 
 # البرنامج يستعمل QtCore و QtGui و QtWidgets و QtSvg فقط

@@ -27,6 +27,7 @@ from . import icons, theme
 from .canvas import Canvas, numpy_to_qimage, qimage_to_numpy
 from .clothing_tool import ClothingTool
 from .home import HomeScreen
+from .merge_tool import MergeTool
 from .optimize_tool import OptimizeTool
 from .navigator import Navigator
 from .properties import PropertiesPanel, _button
@@ -213,6 +214,10 @@ class MainWindow(FramelessWindow):
             "افحص مورد ملابس كاملًا: قطع بلا تكستشر، فجوات في الترقيم، "
             "وملفات يتيمة — مع إصلاح تلقائي.")
         self.home.add_tool(
+            "merge", "layers", "دمج الموارد",
+            "اجمع عدة موارد ملابس أو سيارات في مورد واحد، مع توليد "
+            "fxmanifest جاهز وكشف تصادم الأسماء.")
+        self.home.add_tool(
             "optimize", "batch", "ضغط الموارد",
             "صغّر حجم مورد كامل — ملابس أو سيارات أو خرائط — بتصغير "
             "التكستشرات المبالغ فيها وتحويل الصيغ الزائدة.")
@@ -228,6 +233,10 @@ class MainWindow(FramelessWindow):
         self.optimizer = OptimizeTool()
         self.optimizer.statusMessage.connect(self._status)
         self.stack.addWidget(self.optimizer)
+
+        self.merger = MergeTool()
+        self.merger.statusMessage.connect(self._status)
+        self.stack.addWidget(self.merger)
 
         self.stack.setCurrentIndex(0)
 
@@ -523,7 +532,7 @@ class MainWindow(FramelessWindow):
     # ------------------------------------------------------- مكدّس الأدوات
 
     def open_tool(self, key):
-        pages = {"editor": 1, "clothing": 2, "optimize": 3}
+        pages = {"editor": 1, "clothing": 2, "optimize": 3, "merge": 4}
         if key not in pages:
             return
         self.stack.setCurrentIndex(pages[key])
@@ -533,8 +542,9 @@ class MainWindow(FramelessWindow):
             self.title_bar.set_context(doc.name if doc else "لا يوجد ملف مفتوح")
             self._status("محرّر التكستشرات")
         else:
-            self.title_bar.set_context(
-                "مدقّق الملابس" if key == "clothing" else "ضغط الموارد")
+            labels = {"clothing": "مدقّق الملابس",
+                      "optimize": "ضغط الموارد", "merge": "دمج الموارد"}
+            self.title_bar.set_context(labels.get(key, ""))
 
     def show_home(self):
         self.stack.setCurrentIndex(0)
