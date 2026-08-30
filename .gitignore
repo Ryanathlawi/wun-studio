@@ -17,3 +17,8 @@ assets/fonts/*.otf
 build/
 dist/
 build_tools/_pkg.py
+
+dist_dir/
+dist_setup/
+build_dir/
+build_setup/

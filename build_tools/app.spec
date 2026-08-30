@@ -95,12 +95,15 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
+ONEDIR = os.environ.get("WUN_ONEDIR") == "1"
+
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
-    [],
+    [] if ONEDIR else a.binaries,
+    [] if ONEDIR else a.datas,
+    a.dependencies if ONEDIR and hasattr(a, "dependencies") else [],
+    exclude_binaries=ONEDIR,
     name="Wun Studio",
     debug=False,
     bootloader_ignore_signals=False,
@@ -115,3 +118,13 @@ exe = EXE(
     entitlements_file=None,
     icon=os.path.join(ROOT, "assets", "app.ico"),
 )
+
+if ONEDIR:
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=False,
+        name="Wun Studio",
+    )
