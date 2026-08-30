@@ -12,7 +12,7 @@ import numpy as np
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSizeF, Qt, Signal
 from PySide6.QtGui import (QBrush, QColor, QFont, QFontMetricsF, QImage,
                            QPainter, QPen, QPixmap, QTransform)
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QApplication, QWidget
 
 from . import theme
 
@@ -27,6 +27,7 @@ TOOL_RECT = "rect"
 TOOL_ELLIPSE = "ellipse"
 TOOL_LINE = "line"
 TOOL_PICK = "pick"
+TOOL_PAN = "pan"
 
 _SELECT = QColor(theme.ACCENT)
 
@@ -649,7 +650,8 @@ class Canvas(QWidget):
         pos = QPointF(ev.position())
         img_pt = self.widget_to_image(pos)
 
-        if ev.button() == Qt.MiddleButton or self._space_down:
+        if (ev.button() == Qt.MiddleButton or self._space_down
+                or self.tool == TOOL_PAN):
             self._panning = True
             self._pan_anchor = ev.position().toPoint()
             self.setCursor(Qt.ClosedHandCursor)
@@ -744,9 +746,10 @@ class Canvas(QWidget):
         self.update()
 
     def mouseReleaseEvent(self, ev):
-        if self._panning and (ev.button() == Qt.MiddleButton or not self._space_down):
+        if self._panning:
             self._panning = False
-            self.setCursor(Qt.ArrowCursor)
+            self.setCursor(Qt.OpenHandCursor if self.tool == TOOL_PAN
+                           else Qt.ArrowCursor)
             return
         if self._image_handle is not None:
             self._image_handle = None
@@ -762,6 +765,25 @@ class Canvas(QWidget):
             self._commit_stroke()
         elif self._drag_start is not None:
             self._commit_shape()
+
+    def enterEvent(self, ev):
+        """
+        منح الكانفس التركيز عند دخول المؤشر.
+
+        بدون هذا لا يصل مفتاح المسافة إلى الكانفس إن كان آخر نقر على
+        قائمة التكستشرات، فيبدو تحريك اللوحة كأنه معطّل. نتجنّب سرقة
+        التركيز من حقول الكتابة حتى لا ينقطع البحث أو إدخال النص.
+        """
+        from PySide6.QtWidgets import (QAbstractSpinBox, QLineEdit,
+                                       QPlainTextEdit, QTextEdit)
+        focused = QApplication.focusWidget()
+        typing = isinstance(focused, (QLineEdit, QPlainTextEdit,
+                                      QTextEdit, QAbstractSpinBox))
+        if not typing and self.image is not None:
+            self.setFocus(Qt.MouseFocusReason)
+        if self.tool == TOOL_PAN:
+            self.setCursor(Qt.OpenHandCursor)
+        super().enterEvent(ev)
 
     def leaveEvent(self, ev):
         self._hover = QPointF(-999, -999)

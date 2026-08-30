@@ -234,14 +234,17 @@ so an oversized photo arrives at a usable size instead of covering everything.
 
 | Keys | Action |
 |---|---|
-| `Ctrl+O` | Open YTD |
+| `Ctrl+O` | Open one or more YTD files |
+| `Ctrl+Shift+O` | Open every YTD in a folder |
+| `Ctrl+Tab` | Next open file |
 | `Ctrl+Shift+S` | Save As YTD |
+| `Ctrl+Alt+S` | Save every modified file into a folder |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / Redo |
-| `B` `E` `T` `R` `L` `N` `I` | Brush, Eraser, Text, Rect, elLipse, liNe, pIck |
+| `B` `E` `T` `R` `L` `N` `I` `H` | Brush, Eraser, Text, Rect, elLipse, liNe, pIck, Hand |
 | `Ctrl+ +` / `Ctrl+ -` | Zoom in / out |
 | `Ctrl+0` / `Ctrl+1` | Fit to window / 100% |
 | Mouse wheel | Zoom at the cursor |
-| Middle-drag, or hold `Space` | Pan |
+| Hand tool, middle-drag, or hold `Space` | Pan |
 | `Ctrl+Enter` | Apply the floating text or image |
 | `Delete` | Discard the floating text or image |
 

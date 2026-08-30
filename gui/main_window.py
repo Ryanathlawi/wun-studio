@@ -447,6 +447,9 @@ class MainWindow(FramelessWindow):
 
     def _set_tool(self, key):
         self.canvas.tool = key
+        # مؤشر اليد يوضّح أن النقر سيحرّك اللوحة لا يرسم عليها
+        self.canvas.setCursor(Qt.OpenHandCursor if key == cv.TOOL_PAN
+                              else Qt.ArrowCursor)
         if key != cv.TOOL_TEXT and self.canvas.text_item is None:
             self.properties.set_text_controls_enabled(False)
 

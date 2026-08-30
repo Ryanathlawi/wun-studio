@@ -22,6 +22,7 @@ TOOLS = [
     (cv.TOOL_ELLIPSE, "ellipse", "بيضاوي", "L"),
     (cv.TOOL_LINE,    "line",    "خط",     "N"),
     (cv.TOOL_PICK,    "pick",    "ملقاط ألوان", "I"),
+    (cv.TOOL_PAN,     "pan",     "تحريك اللوحة", "H"),
 ]
 
 
